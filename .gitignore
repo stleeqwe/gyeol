@@ -1,0 +1,45 @@
+# Ordiq pipeline state (ephemeral)
+.claude/
+
+# OS
+.DS_Store
+*.swp
+
+# Node / Deno
+node_modules/
+.deno/
+
+# Supabase
+**/.env
+**/.env.local
+backend/supabase/.temp/
+backend/supabase/.branches/
+
+# iOS
+*.xcuserstate
+*.xcodeproj/project.xcworkspace
+*.xcodeproj/xcuserdata
+*.xcworkspace/xcuserdata
+DerivedData/
+build/
+.build/
+xcuserdata/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package
+Packages/
+Package.resolved
+.swiftpm/
+
+# Logs / temp
+*.log
+tmp/
+.cache/
+
+# Secrets
+*.pem
+*.p8
+secrets/

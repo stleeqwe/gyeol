@@ -1,0 +1,18 @@
+// 결 (Gyeol) — Build configuration
+//
+// Xcode Build Settings → Configurations → 본 .xcconfig 사용 OR
+// Info.plist의 SUPABASE_URL / SUPABASE_ANON_KEY 키가 본 변수를 참조하므로
+// xcconfig를 빌드 설정에 연결하면 자동 주입.
+//
+// 운영 단계에서는 Production / Staging / Local 별도 .xcconfig 분리 권장.
+
+SUPABASE_URL = https:/$()/xkgffegenrvitalgncnt.supabase.co
+SUPABASE_ANON_KEY = sb_publishable__8MViMngmZS76hXOrI76Qw_cRHAoYNc
+
+// 주의: $() 트릭은 xcconfig가 // 를 주석으로 인식하는 문제 회피용 (Xcode 표준 패턴).
+//
+// Info.plist에는 다음 키가 있음:
+//   <key>SUPABASE_URL</key>
+//   <string>$(SUPABASE_URL)</string>
+//   <key>SUPABASE_ANON_KEY</key>
+//   <string>$(SUPABASE_ANON_KEY)</string>

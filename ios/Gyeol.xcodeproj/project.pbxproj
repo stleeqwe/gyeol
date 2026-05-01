@@ -1,0 +1,377 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		56EA43660D3789C7206E83AC /* GyeolUI in Frameworks */ = {isa = PBXBuildFile; productRef = D374B4CC82ADCADA5A1CACF7 /* GyeolUI */; };
+		789812036EFCE863A5A8679C /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 888D343640B2CCFDA2175CE1 /* LaunchScreen.storyboard */; };
+		B5E581981DFC94C17EC357DE /* GyeolApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C81AC65A27BC3FBE61A5C5D /* GyeolApp.swift */; };
+		E908384FD1CB7A2C3C04C3DC /* GyeolCore in Frameworks */ = {isa = PBXBuildFile; productRef = DDB30CCB22E92196B3268E81 /* GyeolCore */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		1C81AC65A27BC3FBE61A5C5D /* GyeolApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GyeolApp.swift; sourceTree = "<group>"; };
+		5CBCD96C80032DE802FD5E14 /* GyeolApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GyeolApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6B29E83B305E891305D3646A /* ios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ios; path = .; sourceTree = SOURCE_ROOT; };
+		888D343640B2CCFDA2175CE1 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		C2AFC4B20410C3A064A83516 /* Gyeol.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Gyeol.xcconfig; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		7F1DA303300B2FC2D245001D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E908384FD1CB7A2C3C04C3DC /* GyeolCore in Frameworks */,
+				56EA43660D3789C7206E83AC /* GyeolUI in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		4D3D6F03DDDA57B74B17F611 = {
+			isa = PBXGroup;
+			children = (
+				B65D6C27410F008E0B72D70F /* App */,
+				CD279A997C22523A26025FDD /* Packages */,
+				98E5D5C71DD1A95EF8CB308C /* Resources */,
+				9583F19A1788E00244B78BFE /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		9583F19A1788E00244B78BFE /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				5CBCD96C80032DE802FD5E14 /* GyeolApp.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		98E5D5C71DD1A95EF8CB308C /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				C2AFC4B20410C3A064A83516 /* Gyeol.xcconfig */,
+				888D343640B2CCFDA2175CE1 /* LaunchScreen.storyboard */,
+			);
+			name = Resources;
+			path = Gyeol/Resources;
+			sourceTree = "<group>";
+		};
+		B65D6C27410F008E0B72D70F /* App */ = {
+			isa = PBXGroup;
+			children = (
+				1C81AC65A27BC3FBE61A5C5D /* GyeolApp.swift */,
+			);
+			name = App;
+			path = Gyeol/App;
+			sourceTree = "<group>";
+		};
+		CD279A997C22523A26025FDD /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				6B29E83B305E891305D3646A /* ios */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		670C372DA779B0B405480995 /* GyeolApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 26745CC4D9500AC515F29BFF /* Build configuration list for PBXNativeTarget "GyeolApp" */;
+			buildPhases = (
+				BE1B4298A4E274B3CAF19A29 /* Sources */,
+				A56A13D50D48B8D10F3CD8FB /* Resources */,
+				7F1DA303300B2FC2D245001D /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = GyeolApp;
+			packageProductDependencies = (
+				DDB30CCB22E92196B3268E81 /* GyeolCore */,
+				D374B4CC82ADCADA5A1CACF7 /* GyeolUI */,
+			);
+			productName = GyeolApp;
+			productReference = 5CBCD96C80032DE802FD5E14 /* GyeolApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		7525A635F2B8EF6723286C91 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					670C372DA779B0B405480995 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 9F0838DD0AA249EB044B0EFB /* Build configuration list for PBXProject "Gyeol" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 4D3D6F03DDDA57B74B17F611;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				894825B44782FC7033C52AA2 /* XCLocalSwiftPackageReference "." */,
+			);
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				670C372DA779B0B405480995 /* GyeolApp */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A56A13D50D48B8D10F3CD8FB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				789812036EFCE863A5A8679C /* LaunchScreen.storyboard in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		BE1B4298A4E274B3CAF19A29 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B5E581981DFC94C17EC357DE /* GyeolApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		1419DF3EEC60D1C850E5631A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		632A8E35BF38287CADA53EEA /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = C2AFC4B20410C3A064A83516 /* Gyeol.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				CODE_SIGN_ENTITLEMENTS = Gyeol/Resources/Gyeol.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				INFOPLIST_FILE = Gyeol/Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.gyeol.app;
+				PRODUCT_NAME = Gyeol;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		D055FF9AB8DC35DEBCFF4A9F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = C2AFC4B20410C3A064A83516 /* Gyeol.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				CODE_SIGN_ENTITLEMENTS = Gyeol/Resources/Gyeol.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				INFOPLIST_FILE = Gyeol/Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.gyeol.app;
+				PRODUCT_NAME = Gyeol;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		E90737EF51B7D3703550D270 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		26745CC4D9500AC515F29BFF /* Build configuration list for PBXNativeTarget "GyeolApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D055FF9AB8DC35DEBCFF4A9F /* Debug */,
+				632A8E35BF38287CADA53EEA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9F0838DD0AA249EB044B0EFB /* Build configuration list for PBXProject "Gyeol" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1419DF3EEC60D1C850E5631A /* Debug */,
+				E90737EF51B7D3703550D270 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		894825B44782FC7033C52AA2 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D374B4CC82ADCADA5A1CACF7 /* GyeolUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = GyeolUI;
+		};
+		DDB30CCB22E92196B3268E81 /* GyeolCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = GyeolCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 7525A635F2B8EF6723286C91 /* Project object */;
+}
