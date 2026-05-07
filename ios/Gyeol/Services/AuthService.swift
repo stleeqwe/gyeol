@@ -16,6 +16,8 @@ public final class AuthService: NSObject, ObservableObject {
     @Published public private(set) var userId: UUID?
     @Published public private(set) var hasActiveConsent: Bool = false
     @Published public private(set) var isProcessing: Bool = false
+    @Published public private(set) var bootstrapResolved: Bool = false
+    @Published public private(set) var publishState: PublishState?
     @Published public var lastError: String?
 
     private var currentNonce: String?
@@ -26,22 +28,86 @@ public final class AuthService: NSObject, ObservableObject {
     }
 
     public func refresh() async {
+        defer { self.bootstrapResolved = true }
         let id = GyeolClient.shared.currentUserId
         self.userId = id
         self.isAuthenticated = id != nil
+        GyLog.auth.info("refresh.start", fields: [
+            "has_session": String(id != nil),
+            "user_id": id?.short ?? "?",
+        ])
         guard id != nil else {
             self.hasActiveConsent = false
+            self.publishState = nil
+            GyLog.auth.info("refresh.no_session")
             return
         }
         do {
             let bootstrap = try await bootstrapUser()
             self.userId = bootstrap.userId
             self.hasActiveConsent = bootstrap.hasActiveConsent
+            if bootstrap.profilePublishedAt != nil {
+                UserDefaults.standard.set(true, forKey: Self.publishedKey(userId: bootstrap.userId))
+            }
+            GyLog.auth.info("refresh.ok", fields: [
+                "user_id": bootstrap.userId.short,
+                "has_active_consent": String(bootstrap.hasActiveConsent),
+            ])
         } catch {
             self.hasActiveConsent = false
             self.lastError = error.localizedDescription
             GyLog.auth.error("bootstrap_user.fail", error: error)
         }
+        if hasActiveConsent {
+            await refreshPublishState()
+        } else {
+            publishState = nil
+        }
+    }
+
+    /// Recomputes publish state. The backend owns matching-pool publish state;
+    /// UserDefaults mirrors successful publish/bootstrap state for fast local resume.
+    /// Call on launch and after publish success.
+    public func refreshPublishState() async {
+        guard isAuthenticated, hasActiveConsent, let userId else {
+            self.publishState = nil
+            return
+        }
+        if Self.isLocallyPublished(userId: userId) {
+            self.publishState = .published
+            GyLog.auth.info("publish_state.refresh.ok", fields: ["state": "published(local)"])
+            return
+        }
+        do {
+            let cursor = try await InterviewService.shared.computeResumeCursor()
+            let state = PublishState.unpublished(cursor)
+            self.publishState = state
+            GyLog.auth.info("publish_state.refresh.ok", fields: ["state": state.shortLabel])
+        } catch {
+            GyLog.auth.error("publish_state.refresh.fail", error: error)
+        }
+    }
+
+    /// Records publish success locally. Call after publish() Edge Function returns OK.
+    /// Survives app restarts; cleared on signOut/softDeleteAccount.
+    public func markPublished() {
+        guard let userId else { return }
+        UserDefaults.standard.set(true, forKey: Self.publishedKey(userId: userId))
+        self.publishState = .published
+        GyLog.auth.info("publish_state.mark_published", fields: ["user_id": userId.short])
+    }
+
+    private static func publishedKey(userId: UUID) -> String {
+        "gyeol.published.\(userId.uuidString)"
+    }
+
+    private static func isLocallyPublished(userId: UUID) -> Bool {
+        UserDefaults.standard.bool(forKey: publishedKey(userId: userId))
+    }
+
+    private func clearLocalPublishedFlag() {
+        guard let userId else { return }
+        UserDefaults.standard.removeObject(forKey: Self.publishedKey(userId: userId))
     }
 
     public func startAppleSignIn() {
@@ -65,27 +131,18 @@ public final class AuthService: NSObject, ObservableObject {
             "consent_text_version": consentTextVersion,
             "user_id": userId.short,
         ]) {
-            struct ConsentInsert: Encodable {
-                let user_id: UUID
-                let sensitive_data_processing: Bool
-                let voice_on_device_disclosed: Bool
-                let raw_quote_isolation_disclosed: Bool
-                let no_ai_training_disclosed: Bool
-                let data_residency_disclosed: Bool
+            struct Body: Encodable {
                 let consent_text_version: String
                 let ip_address: String?
             }
-            let row = ConsentInsert(
-                user_id: userId,
-                sensitive_data_processing: true,
-                voice_on_device_disclosed: true,
-                raw_quote_isolation_disclosed: true,
-                no_ai_training_disclosed: true,
-                data_residency_disclosed: true,
+            let body = Body(
                 consent_text_version: consentTextVersion,
                 ip_address: ipAddress
             )
-            try await GyeolClient.shared.supabase.from("consents").insert(row).execute()
+            try await GyeolClient.shared.supabase.functions.invoke(
+                "submit-consent",
+                options: .init(body: body)
+            )
         }
         self.hasActiveConsent = true
     }
@@ -93,10 +150,12 @@ public final class AuthService: NSObject, ObservableObject {
     public func signOut() async {
         GyLog.auth.info("sign_out.start")
         do {
+            clearLocalPublishedFlag()
             try await GyeolClient.shared.signOut()
             self.userId = nil
             self.isAuthenticated = false
             self.hasActiveConsent = false
+            self.publishState = nil
             GyLog.auth.info("sign_out.ok")
         } catch {
             self.lastError = error.localizedDescription
@@ -146,10 +205,12 @@ public final class AuthService: NSObject, ObservableObject {
                 .eq("id", value: userId.uuidString)
                 .execute()
         }
+        clearLocalPublishedFlag()
         try await GyeolClient.shared.signOut()
         self.userId = nil
         self.isAuthenticated = false
         self.hasActiveConsent = false
+        self.publishState = nil
     }
 
     private func bootstrapUser() async throws -> BootstrapReply {
@@ -166,10 +227,12 @@ public final class AuthService: NSObject, ObservableObject {
 private struct BootstrapReply: Decodable {
     let userId: UUID
     let hasActiveConsent: Bool
+    let profilePublishedAt: String?
 
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
         case hasActiveConsent = "has_active_consent"
+        case profilePublishedAt = "profile_published_at"
     }
 }
 

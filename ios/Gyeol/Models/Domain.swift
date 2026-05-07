@@ -422,6 +422,36 @@ public struct ConsentRecord: Codable, Identifiable, Hashable {
     }
 }
 
+// ─── Sequential interview flow state (client-derived) ─────────
+
+public enum PublishState: Equatable {
+    case unpublished(ResumeCursor)
+    case published
+
+    public var shortLabel: String {
+        switch self {
+        case .published: return "published"
+        case .unpublished(let c): return "unpublished:\(c.shortLabel)"
+        }
+    }
+}
+
+public enum ResumeCursor: Equatable {
+    case fresh                       // user has zero interviews — drop straight into domain 1
+    case domainIntro(DomainID)       // some progress, this domain not started
+    case domainInProgress(DomainID)  // status = in_progress | analyzing
+    case dealbreakers                // all 6 finalized/skipped/private, no core_identity yet
+
+    public var shortLabel: String {
+        switch self {
+        case .fresh: return "fresh"
+        case .domainIntro(let d): return "intro:\(d.rawValue)"
+        case .domainInProgress(let d): return "in_progress:\(d.rawValue)"
+        case .dealbreakers: return "dealbreakers"
+        }
+    }
+}
+
 public struct OpenQuestion: Hashable {
     public let domain: DomainID
     public let primary: String

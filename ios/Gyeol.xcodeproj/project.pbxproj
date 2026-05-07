@@ -7,17 +7,22 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		56EA43660D3789C7206E83AC /* GyeolUI in Frameworks */ = {isa = PBXBuildFile; productRef = D374B4CC82ADCADA5A1CACF7 /* GyeolUI */; };
+		56EA43660D3789C7206E83AC /* GyeolDomain in Frameworks */ = {isa = PBXBuildFile; productRef = B01FFAB9A3907ECE6294A09F /* GyeolDomain */; };
 		789812036EFCE863A5A8679C /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 888D343640B2CCFDA2175CE1 /* LaunchScreen.storyboard */; };
+		8EF87BE51AC2255AB4002337 /* Tokens.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5C8E08B5F1988EF6D817027E /* Tokens.xcassets */; };
+		A785C3F434E119AA71C6C68A /* GyeolUI in Frameworks */ = {isa = PBXBuildFile; productRef = D374B4CC82ADCADA5A1CACF7 /* GyeolUI */; };
+		B2A0B84702C0B91141A78990 /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = AD96F62750193F391E80E5BF /* Fonts */; };
 		B5E581981DFC94C17EC357DE /* GyeolApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C81AC65A27BC3FBE61A5C5D /* GyeolApp.swift */; };
 		E908384FD1CB7A2C3C04C3DC /* GyeolCore in Frameworks */ = {isa = PBXBuildFile; productRef = DDB30CCB22E92196B3268E81 /* GyeolCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		1C81AC65A27BC3FBE61A5C5D /* GyeolApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GyeolApp.swift; sourceTree = "<group>"; };
+		5C8E08B5F1988EF6D817027E /* Tokens.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Tokens.xcassets; sourceTree = "<group>"; };
 		5CBCD96C80032DE802FD5E14 /* GyeolApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GyeolApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6B29E83B305E891305D3646A /* ios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ios; path = .; sourceTree = SOURCE_ROOT; };
 		888D343640B2CCFDA2175CE1 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		AD96F62750193F391E80E5BF /* Fonts */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Fonts; path = Gyeol/Resources/Fonts; sourceTree = SOURCE_ROOT; };
 		C2AFC4B20410C3A064A83516 /* Gyeol.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Gyeol.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -27,7 +32,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				E908384FD1CB7A2C3C04C3DC /* GyeolCore in Frameworks */,
-				56EA43660D3789C7206E83AC /* GyeolUI in Frameworks */,
+				56EA43660D3789C7206E83AC /* GyeolDomain in Frameworks */,
+				A785C3F434E119AA71C6C68A /* GyeolUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -37,6 +43,7 @@
 		4D3D6F03DDDA57B74B17F611 = {
 			isa = PBXGroup;
 			children = (
+				AD96F62750193F391E80E5BF /* Fonts */,
 				B65D6C27410F008E0B72D70F /* App */,
 				CD279A997C22523A26025FDD /* Packages */,
 				98E5D5C71DD1A95EF8CB308C /* Resources */,
@@ -57,6 +64,7 @@
 			children = (
 				C2AFC4B20410C3A064A83516 /* Gyeol.xcconfig */,
 				888D343640B2CCFDA2175CE1 /* LaunchScreen.storyboard */,
+				5C8E08B5F1988EF6D817027E /* Tokens.xcassets */,
 			);
 			name = Resources;
 			path = Gyeol/Resources;
@@ -97,6 +105,7 @@
 			name = GyeolApp;
 			packageProductDependencies = (
 				DDB30CCB22E92196B3268E81 /* GyeolCore */,
+				B01FFAB9A3907ECE6294A09F /* GyeolDomain */,
 				D374B4CC82ADCADA5A1CACF7 /* GyeolUI */,
 			);
 			productName = GyeolApp;
@@ -113,13 +122,12 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					670C372DA779B0B405480995 = {
-						DevelopmentTeam = "";
+						DevelopmentTeam = W4T837AHL3;
 						ProvisioningStyle = Automatic;
 					};
 				};
 			};
 			buildConfigurationList = 9F0838DD0AA249EB044B0EFB /* Build configuration list for PBXProject "Gyeol" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -132,6 +140,7 @@
 				894825B44782FC7033C52AA2 /* XCLocalSwiftPackageReference "." */,
 			);
 			preferredProjectObjectVersion = 77;
+			productRefGroup = 9583F19A1788E00244B78BFE /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -145,7 +154,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B2A0B84702C0B91141A78990 /* Fonts in Resources */,
 				789812036EFCE863A5A8679C /* LaunchScreen.storyboard in Resources */,
+				8EF87BE51AC2255AB4002337 /* Tokens.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -235,7 +246,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = W4T837AHL3;
 				INFOPLIST_FILE = Gyeol/Resources/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -260,7 +271,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = W4T837AHL3;
 				INFOPLIST_FILE = Gyeol/Resources/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -363,6 +374,10 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		B01FFAB9A3907ECE6294A09F /* GyeolDomain */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = GyeolDomain;
+		};
 		D374B4CC82ADCADA5A1CACF7 /* GyeolUI */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = GyeolUI;

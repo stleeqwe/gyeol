@@ -17,29 +17,26 @@ public final class InterviewService {
 
     public func getOrCreateInterview(domain: DomainID) async throws -> Interview {
         guard let userId = GyeolClient.shared.currentUserId else {
+            GyLog.interview.warn("get_or_create_interview.no_user", fields: ["domain": domain.rawValue])
             throw URLError(.userAuthenticationRequired)
         }
-        let existing: [Interview] = try await client.from("interviews")
-            .select()
-            .eq("user_id", value: userId.uuidString)
-            .eq("domain", value: domain.rawValue)
-            .limit(1)
-            .execute()
-            .value
-        if let existing = existing.first {
-            return existing
+        return try await GyLog.interview.trace("get_or_create_interview", fields: [
+            "user_id": userId.short,
+            "domain": domain.rawValue,
+        ]) {
+            struct Body: Encodable {
+                let domain: DomainID
+            }
+            let row: Interview = try await client.functions.invoke(
+                "get-or-create-interview",
+                options: .init(body: Body(domain: domain))
+            )
+            GyLog.interview.info("get_or_create_interview.created", fields: [
+                "interview_id": row.id.short,
+                "status": row.status.rawValue,
+            ])
+            return row
         }
-        struct Insert: Encodable {
-            let user_id: UUID
-            let domain: DomainID
-        }
-        let row: Interview = try await client.from("interviews")
-            .insert(Insert(user_id: userId, domain: domain))
-            .select()
-            .single()
-            .execute()
-            .value
-        return row
     }
 
     // ─── 답변 저장 → 후속 질문 ────────────────────────────────
@@ -58,7 +55,14 @@ public final class InterviewService {
     }
 
     public func submitAnswer(_ payload: AnswerSubmit) async throws -> InterviewAnswer {
-        try await GyLog.interview.trace("submit_answer", fields: [
+        GyLog.trace.traceText("answer.submit.text", text: payload.text_plain, fields: [
+            "interview_id": payload.interview_id.short,
+            "domain": payload.domain.rawValue,
+            "seq": String(payload.seq),
+            "is_open_question": String(payload.is_open_question_answer),
+            "depth_level": String(payload.depth_level),
+        ])
+        return try await GyLog.interview.trace("submit_answer", fields: [
             "interview_id": payload.interview_id.short,
             "domain": payload.domain.rawValue,
             "seq": String(payload.seq),
@@ -75,7 +79,7 @@ public final class InterviewService {
     }
 
     public func generateFollowUp(interviewId: UUID, domainId: DomainID, parentAnswerId: UUID) async throws -> String {
-        return try await GyLog.interview.trace("follow_up.request", fields: [
+        let question = try await GyLog.interview.trace("follow_up.request", fields: [
             "interview_id": interviewId.short,
             "domain": domainId.rawValue,
             "parent_answer_id": parentAnswerId.short,
@@ -92,6 +96,12 @@ public final class InterviewService {
             )
             return resp.follow_up_question
         }
+        GyLog.trace.traceText("follow_up.question.text", text: question, fields: [
+            "interview_id": interviewId.short,
+            "domain": domainId.rawValue,
+            "parent_answer_id": parentAnswerId.short,
+        ])
+        return question
     }
 
     // ─── 영역 종료 → 분석 ─────────────────────────────────────
@@ -221,49 +231,114 @@ public final class InterviewService {
     // ─── 본인 검토 화면 — 영역 분석 로드 ───────────────────────
 
     public func loadOwnAnalyses() async throws -> [DomainAnalysis] {
-        guard let userId = GyeolClient.shared.currentUserId else { return [] }
-        struct Row: Decodable {
-            let id: UUID
-            let domain: DomainID
-            let summary_where: String
-            let summary_why: String
-            let summary_how: String
-            let summary_tension_type: String?
-            let summary_tension_text: String?
-            let is_from_skip: Bool
-            let is_from_private_kept: Bool
+        guard let userId = GyeolClient.shared.currentUserId else {
+            GyLog.interview.warn("load_own_analyses.no_user")
+            return []
         }
-        let rows: [Row] = try await client.from("analyses")
-            .select()
-            .eq("user_id", value: userId.uuidString)
-            .execute()
-            .value
-        return rows.map { r in
-            DomainAnalysis(
-                id: r.id,
-                domain: r.domain,
-                summary: AnalysisSummary(
-                    where: r.summary_where,
-                    why: r.summary_why,
-                    how: r.summary_how,
-                    tensionType: r.summary_tension_type,
-                    tensionText: r.summary_tension_text
-                ),
-                isFromSkip: r.is_from_skip,
-                isFromPrivateKept: r.is_from_private_kept
-            )
+        return try await GyLog.interview.trace("load_own_analyses", fields: ["user_id": userId.short]) {
+            struct Row: Decodable {
+                let id: UUID
+                let domain: DomainID
+                let summary_where: String
+                let summary_why: String
+                let summary_how: String
+                let summary_tension_type: String?
+                let summary_tension_text: String?
+                let is_from_skip: Bool
+                let is_from_private_kept: Bool
+            }
+            let rows: [Row] = try await client.from("analyses")
+                .select("""
+                    id,
+                    domain,
+                    summary_where,
+                    summary_why,
+                    summary_how,
+                    summary_tension_type,
+                    summary_tension_text,
+                    is_from_skip,
+                    is_from_private_kept
+                    """)
+                .eq("user_id", value: userId.uuidString)
+                .execute()
+                .value
+            GyLog.interview.info("load_own_analyses.result", fields: ["count": String(rows.count)])
+            return rows.map { r in
+                DomainAnalysis(
+                    id: r.id,
+                    domain: r.domain,
+                    summary: AnalysisSummary(
+                        where: r.summary_where,
+                        why: r.summary_why,
+                        how: r.summary_how,
+                        tensionType: r.summary_tension_type,
+                        tensionText: r.summary_tension_text
+                    ),
+                    isFromSkip: r.is_from_skip,
+                    isFromPrivateKept: r.is_from_private_kept
+                )
+            }
         }
     }
 
+    // ─── Sequential flow — interviews aggregate + publish state ────
+
+    public func loadOwnInterviews() async throws -> [Interview] {
+        guard let userId = GyeolClient.shared.currentUserId else {
+            GyLog.interview.warn("load_own_interviews.no_user")
+            return []
+        }
+        return try await GyLog.interview.trace("load_own_interviews", fields: ["user_id": userId.short]) {
+            let rows: [Interview] = try await client.from("interviews")
+                .select()
+                .eq("user_id", value: userId.uuidString)
+                .execute()
+                .value
+            GyLog.interview.info("load_own_interviews.result", fields: ["count": String(rows.count)])
+            return rows
+        }
+    }
+
+    /// Derives the resume cursor from server interview rows (no `published_at` column exists,
+    /// and `core_identity` is created during `prepare-review` *before* publish click — so it is
+    /// not a reliable publish signal). The "published" flag is tracked locally via
+    /// `AuthService.markPublished()` after a successful publish() call.
+    /// Returns the cursor that should drive `InterviewShellView` when the user is unpublished.
+    public func computeResumeCursor() async throws -> ResumeCursor {
+        let interviews = try await loadOwnInterviews()
+        if interviews.isEmpty {
+            return .fresh
+        }
+        let byDomain = Dictionary(uniqueKeysWithValues: interviews.map { ($0.domain, $0) })
+        for d in DomainID.allCases {
+            guard let iv = byDomain[d] else {
+                return .domainIntro(d)
+            }
+            switch iv.status {
+            case .finalized, .skipped, .private_kept:
+                continue
+            case .in_progress, .analyzing:
+                return .domainInProgress(d)
+            }
+        }
+        return .dealbreakers
+    }
+
     public func loadOwnCoreIdentity() async throws -> CoreIdentity? {
-        guard let userId = GyeolClient.shared.currentUserId else { return nil }
-        struct Row: Decodable { let label: String; let interpretation: String }
-        let rows: [Row] = try await client.from("core_identities")
-            .select()
-            .eq("user_id", value: userId.uuidString)
-            .limit(1)
-            .execute()
-            .value
-        return rows.first.map { CoreIdentity(label: $0.label, interpretation: $0.interpretation) }
+        guard let userId = GyeolClient.shared.currentUserId else {
+            GyLog.interview.warn("load_own_core_identity.no_user")
+            return nil
+        }
+        return try await GyLog.interview.trace("load_own_core_identity", fields: ["user_id": userId.short]) {
+            struct Row: Decodable { let label: String; let interpretation: String }
+            let rows: [Row] = try await client.from("core_identities")
+                .select()
+                .eq("user_id", value: userId.uuidString)
+                .limit(1)
+                .execute()
+                .value
+            GyLog.interview.info("load_own_core_identity.result", fields: ["found": String(!rows.isEmpty)])
+            return rows.first.map { CoreIdentity(label: $0.label, interpretation: $0.interpretation) }
+        }
     }
 }

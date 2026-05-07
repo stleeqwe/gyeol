@@ -18,22 +18,30 @@ public final class ChatService: ObservableObject {
     public init() {}
 
     public func loadRooms() async {
-        guard let userId = GyeolClient.shared.currentUserId else { return }
+        guard let userId = GyeolClient.shared.currentUserId else {
+            GyLog.chat.warn("rooms.load.no_user")
+            return
+        }
         do {
-            let rows: [ChatRoom] = try await client.from("chat_rooms")
-                .select()
-                .or("user_a_id.eq.\(userId.uuidString),user_b_id.eq.\(userId.uuidString)")
-                .order("last_message_at", ascending: false, nullsFirst: false)
-                .execute()
-                .value
+            let rows: [ChatRoom] = try await GyLog.chat.trace("rooms.load", fields: ["user_id": userId.short]) {
+                try await client.from("chat_rooms")
+                    .select()
+                    .or("user_a_id.eq.\(userId.uuidString),user_b_id.eq.\(userId.uuidString)")
+                    .order("last_message_at", ascending: false, nullsFirst: false)
+                    .execute()
+                    .value
+            }
             self.rooms = rows
+            GyLog.chat.info("rooms.load.result", fields: ["count": String(rows.count)])
         } catch {
             self.lastError = error.localizedDescription
+            GyLog.chat.error("rooms.load.fail", error: error)
         }
     }
 
     public func subscribeRooms() async {
         guard let userId = GyeolClient.shared.currentUserId else { return }
+        GyLog.realtime.info("chat_rooms.subscribe.start", fields: ["user_id": userId.short])
         let ch = client.realtimeV2.channel("chat_rooms:\(userId.uuidString)")
         let changes = ch.postgresChange(AnyAction.self, schema: "public", table: "chat_rooms")
         do {
@@ -44,10 +52,13 @@ public final class ChatService: ObservableObject {
             return
         }
         self.roomsChannel = ch
+        GyLog.realtime.info("chat_rooms.subscribe.ok", fields: ["user_id": userId.short])
         Task {
             for await _ in changes {
+                GyLog.realtime.debug("chat_rooms.change_received")
                 await self.loadRooms()
             }
+            GyLog.realtime.info("chat_rooms.change_stream_ended")
         }
     }
 

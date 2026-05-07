@@ -25,6 +25,7 @@ Deno.serve(async (req) => {
     const userId = await requireUserId(userClient);
     const body = await readJson<RequestBody>(req);
     const service = getServiceRoleClient();
+    const limit = body.match_id ? 1 : Math.min(Math.max(body.limit ?? 5, 1), 5);
 
     let query = service
       .from("matches")
@@ -32,7 +33,7 @@ Deno.serve(async (req) => {
       .eq("viewer_id", userId)
       .eq("recommendation_status", "pending")
       .order("final_score", { ascending: false })
-      .limit(Math.min(Math.max(body.limit ?? 30, 1), 30));
+      .limit(limit);
     if (body.match_id) query = query.eq("id", body.match_id);
 
     const { data: matches } = await query;
@@ -54,7 +55,17 @@ Deno.serve(async (req) => {
       prepared++;
     }
 
-    return jsonResponse({ prepared });
+    const { count } = await service
+      .from("matches")
+      .select("id", { count: "exact", head: true })
+      .eq("viewer_id", userId)
+      .eq("recommendation_status", "pending");
+
+    return jsonResponse({
+      prepared,
+      processed_count: prepared,
+      remaining_count: count ?? 0,
+    });
   } catch (err) {
     return handleError(err);
   }

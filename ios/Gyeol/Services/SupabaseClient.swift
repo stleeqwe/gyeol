@@ -28,21 +28,30 @@ public final class GyeolClient {
     public let supabase: SupabaseClient
 
     private init() {
+        let start = CFAbsoluteTimeGetCurrent()
         self.supabase = SupabaseClient(
             supabaseURL: GyeolEnv.supabaseURL,
             supabaseKey: GyeolEnv.supabaseAnonKey
         )
+        let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+        GyLog.app.info("supabase_client.init", fields: [
+            "duration_ms": String(ms),
+            "host": GyeolEnv.supabaseURL.host ?? "?",
+        ])
     }
 
     public func signInWithApple(idToken: String, nonce: String) async throws -> Auth.Session {
-        let session = try await supabase.auth.signInWithIdToken(
-            credentials: .init(provider: .apple, idToken: idToken, nonce: nonce)
-        )
-        return session
+        try await GyLog.auth.trace("supabase.id_token_sign_in") {
+            try await supabase.auth.signInWithIdToken(
+                credentials: .init(provider: .apple, idToken: idToken, nonce: nonce)
+            )
+        }
     }
 
     public func signOut() async throws {
-        try await supabase.auth.signOut()
+        try await GyLog.auth.trace("supabase.sign_out") {
+            try await supabase.auth.signOut()
+        }
     }
 
     public var currentUserId: UUID? {

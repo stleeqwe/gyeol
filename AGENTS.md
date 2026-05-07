@@ -15,6 +15,7 @@ The body of this document defers to CLAUDE.md. This file is a mirror:
 - Common tasks: → `CLAUDE.md` "Common Tasks"
 - Never do: → `CLAUDE.md` "Never Do"
 - Production phase TODO items: → `CLAUDE.md` "Production Phase TODO Items"
+- Autonomous deployment authorization: → `CLAUDE.md` "Autonomous Deployment Authorization"
 
 ## Documentation Language Policy
 
@@ -37,6 +38,10 @@ The body of this document defers to CLAUDE.md. This file is a mirror:
 3. **Deterministic function unit tests must not break** — `deno test --allow-net=none backend/supabase/functions/_shared/test_scoring.ts` maintain 29/29 PASS.
 4. **5 spec files are immutable** — `결_*_v*.md` are historical records. New decisions go into `docs/specs/` or as ADRs.
 5. **Apple Sign In + iOS Speech + Apple HIG** are core to this app's identity — do not propose Android/external STT/Web additions (PRD §4.2 OUT).
+
+## Autonomous Deployment Authorization (mirror of CLAUDE.md)
+
+The repository owner has granted standing authorization for coding agents to deploy backend changes (Supabase Edge Functions, migrations, secrets) without per-call confirmation. See `CLAUDE.md` "Autonomous Deployment Authorization" for the full rule set, including the destructive-operation exceptions that still require explicit confirmation.
 
 ## Agent-Specific Notes
 

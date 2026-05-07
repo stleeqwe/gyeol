@@ -128,16 +128,21 @@ public final class SpeechService: NSObject, ObservableObject {
                         self.transcript = self.accumulated + (self.accumulated.isEmpty ? "" : " ") + text
                         self.lastNonSilenceAt = Date()
                     }
-                    if let _ = error {
+                    if let error {
                         // recognizer 오류는 부분 — 자동 재시작 메커니즘 외에는 stop 안 함
+                        GyLog.speech.warn("recognizer.partial_error", fields: [
+                            "error_class": String(describing: type(of: error)),
+                        ])
                     }
                 }
             }
 
             isRecording = true
+            GyLog.speech.info("session.engine_started")
         } catch {
             self.lastError = "session_start_failed"
             isRecording = false
+            GyLog.speech.error("session.start_failed", error: error)
         }
     }
 

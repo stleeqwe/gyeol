@@ -11,6 +11,7 @@ import {
 import { callGeminiJson } from "../_shared/vertex.ts";
 import { PROMPT_VERSION, SYSTEM_PROMPT_C } from "../_shared/prompts.ts";
 import { loggerFor } from "../_shared/logger.ts";
+import { writeLlmTrace } from "../_shared/llm-trace.ts";
 import type { RecommendationNarrative } from "../_shared/types.ts";
 
 interface RequestBody {
@@ -18,6 +19,9 @@ interface RequestBody {
   viewer_core_label: string;
   candidate_core_label: string;
   candidate_core_interpretation: string;
+  // Optional context for ADR-017 trace (caller passes when available).
+  viewer_id?: string;
+  match_id?: string;
 }
 
 Deno.serve(async (req) => {
@@ -56,12 +60,15 @@ ${JSON.stringify(body.draft, null, 2)}
 `;
 
     const llmStart = performance.now();
-    const polished = await callGeminiJson<RecommendationNarrative>({
+    const { data: polished, usage, thinkingSummary } = await callGeminiJson<
+      RecommendationNarrative
+    >({
       model: "gemini-3.1-flash-lite",
       systemPrompt: SYSTEM_PROMPT_C,
       userPrompt,
       temperature: 0.3,
-      maxOutputTokens: 1024,
+      maxOutputTokens: 4096,
+      thinkingLevel: "high",
       jsonSchema: {
         type: "object",
         required: ["headline", "alignment_narrative", "tension_narrative"],
@@ -72,14 +79,36 @@ ${JSON.stringify(body.draft, null, 2)}
         },
       },
     });
+    const llmLatencyMs = Math.round(performance.now() - llmStart);
     log.info("postedit.ok", {
-      llm_latency_ms: Math.round(performance.now() - llmStart),
+      llm_latency_ms: llmLatencyMs,
       prompt_version: PROMPT_VERSION.C,
       model: "gemini-3.1-flash-lite",
       polished_headline_chars: polished.headline.length,
       polished_alignment_chars: polished.alignment_narrative.length,
       polished_tension_chars: polished.tension_narrative.length,
+      input_tokens: usage?.inputTokens ?? 0,
+      output_tokens: usage?.outputTokens ?? 0,
+      thinking_tokens: usage?.thinkingTokens ?? 0,
     });
+
+    if (body.viewer_id) {
+      const service = getServiceRoleClient();
+      await writeLlmTrace(service, {
+        userId: body.viewer_id,
+        functionName: "llm-prompt-c-postedit",
+        promptVersion: PROMPT_VERSION.C,
+        modelId: "gemini-3.1-flash-lite",
+        thinkingLevel: "high",
+        matchId: body.match_id,
+      }, {
+        userPrompt,
+        responseText: JSON.stringify(polished),
+        thinkingSummary,
+        usage,
+        latencyMs: llmLatencyMs,
+      });
+    }
 
     return jsonResponse({
       polished,

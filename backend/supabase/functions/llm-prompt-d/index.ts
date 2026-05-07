@@ -13,6 +13,8 @@ import {
 import { callGeminiJson } from "../_shared/vertex.ts";
 import { PROMPT_VERSION, SYSTEM_PROMPT_D } from "../_shared/prompts.ts";
 import { loggerFor } from "../_shared/logger.ts";
+import { writeLlmTrace } from "../_shared/llm-trace.ts";
+import { DOMAIN_IDS } from "../_shared/types.ts";
 
 interface RequestBody {
   // 6영역 분석 모두 완료된 사용자 호출
@@ -40,11 +42,16 @@ Deno.serve(async (req) => {
         "domain, summary_where, summary_why, summary_how, summary_tension_text",
       )
       .eq("user_id", userId);
-    if (error || !analyses || analyses.length < 3) {
-      reqLog.warn("insufficient_analyses", {
+    const domains = new Set(
+      (analyses ?? []).map((analysis) => analysis.domain),
+    );
+    const missingDomains = DOMAIN_IDS.filter((domain) => !domains.has(domain));
+    if (error || !analyses || missingDomains.length > 0) {
+      reqLog.warn("analysis_incomplete", {
         analysis_count: analyses?.length ?? 0,
+        missing_domains: missingDomains,
       });
-      throw new HttpError(400, "insufficient_analyses");
+      throw new HttpError(400, "analysis_incomplete");
     }
     reqLog.info("analyses.loaded", { analysis_count: analyses.length });
 
@@ -54,20 +61,42 @@ Deno.serve(async (req) => {
       }`
     ).join("\n\n");
 
+    const userPromptD = `# 6영역 요약 (public_safe)\n${summaryBlock}`;
     const llmStart = performance.now();
-    const result = await callGeminiJson<PromptDResponse>({
+    const { data: result, usage, thinkingSummary } = await callGeminiJson<
+      PromptDResponse
+    >({
       model: "gemini-3-flash",
       systemPrompt: SYSTEM_PROMPT_D,
-      userPrompt: `# 6영역 요약 (public_safe)\n${summaryBlock}`,
+      userPrompt: userPromptD,
       temperature: 0.3,
-      maxOutputTokens: 1024,
+      maxOutputTokens: 4096,
+      thinkingLevel: "high",
     });
+    const llmLatencyMs = Math.round(performance.now() - llmStart);
     reqLog.info("llm.ok", {
-      llm_latency_ms: Math.round(performance.now() - llmStart),
+      llm_latency_ms: llmLatencyMs,
       prompt_version: PROMPT_VERSION.D,
       model: "gemini-3-flash",
       label_chars: result.core_identity.label.length,
       interpretation_chars: result.core_identity.interpretation.length,
+      input_tokens: usage?.inputTokens ?? 0,
+      output_tokens: usage?.outputTokens ?? 0,
+      thinking_tokens: usage?.thinkingTokens ?? 0,
+    });
+
+    await writeLlmTrace(service, {
+      userId,
+      functionName: "llm-prompt-d",
+      promptVersion: PROMPT_VERSION.D,
+      modelId: "gemini-3-flash",
+      thinkingLevel: "high",
+    }, {
+      userPrompt: userPromptD,
+      responseText: JSON.stringify(result),
+      thinkingSummary,
+      usage,
+      latencyMs: llmLatencyMs,
     });
 
     await service.from("core_identities").upsert({

@@ -247,6 +247,8 @@ iOS Simulator (iPhone 15) light/dark mode, all 13 screens:
 
 ## 11. DAI Self-Score
 
+### v1 (legacy — superseded by Design System v1 below)
+
 | Dimension | Score | Rationale |
 |-----------|-------|-----------|
 | Cohesion (0.30) | 9 | Consistent across 17 screenshots. Beige + black + serif Korean all aligned. |
@@ -254,6 +256,21 @@ iOS Simulator (iPhone 15) light/dark mode, all 13 screens:
 | Craft (0.25) | 7 | Korean-first line breaks + 4-step voice detail + dual-mode tokens (Dark/Light) |
 | Intuitiveness (0.20) | 8 | One screen, one question / primary CTA clear / avoidance options clearly secondary |
 
-**DAI = (9×0.30)+(8×0.25)+(7×0.25)+(8×0.20) = 2.70+2.00+1.75+1.60 = 8.05 → PASS (≥7).**
+**DAI v1 = (9×0.30)+(8×0.25)+(7×0.25)+(8×0.20) = 8.05 → PASS (≥7).**
 
-Hard-fail gate — Cohesion ≥5, Craft ≥5 required.
+### v2 (Design System v1 alignment — current)
+
+After replacing the earlier ad-hoc `gy*` tokens with the unified `gyeol*` token system (Pretendard 8-step typography, Asset Catalog Light/Dark colors with cool charcoal + warm cream pairing, qualitative_label tri-color matching tone, input-focus fade interaction, Haptic policy):
+
+| Dimension | Score | Rationale |
+|-----------|-------|-----------|
+| Cohesion (0.30) | 9 | Single typeface (Pretendard) for Korean+Latin+digits, single semantic 8-step scale, Asset Catalog dual-mode colors, qualitative_label tri-color set distinct from typical pink/red dating-app palette |
+| Originality (0.25) | 8 | Cool-charcoal + warm-cream split with `bg.page` outer beige preserves "book/seal" feel while shedding casual matching-app warmth; left-accent-bar candidate card; uppercase tag (RESONANCE/COMPROMISE/BOUNDARY) |
+| Craft (0.25) | 8 | Input-focus fade mechanism (§3.2) shipped with VoiceOver-safe `accessibilityHidden(false)`; Pretendard `.fixedSize` with documented Dynamic Type tradeoff; Haptic policy (light default, success/error reserved); BubbleShape asymmetric corners |
+| Intuitiveness (0.20) | 8 | Sequential interview flow (no hub), Resume landing on cold launch, Pause anywhere with auto-save, Profile review-only mode obvious vs publish flow |
+
+**DAI v2 = (9×0.30)+(8×0.25)+(8×0.25)+(8×0.20) = 2.70+2.00+2.00+1.60 = 8.30 → PASS (≥7).**
+
+Hard-fail gate — Cohesion ≥5, Craft ≥5 required. Both gates clear.
+
+Source spec: `결_디자인시스템_v1` (Korean, designer-handed) defines the underlying tokens and components. The iOS implementation in `ios/Gyeol/Components/Tokens.swift` and the component library in `ios/Gyeol/Components/*.swift` is the canonical realization. Deprecated `gy*` aliases remain in Tokens.swift to ease incremental migration but should be removed once all call sites are updated (track in `// MARK: deprecated aliases` comments).

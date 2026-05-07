@@ -32,11 +32,20 @@ Deno.serve(async (req) => {
 
     const service = getServiceRoleClient();
 
-    // 인터뷰 상태 → analyzing
-    await service.from("interviews")
+    // 인터뷰 상태 → analyzing. Only in-progress rows for this domain can move.
+    const { data: interview, error: statusErr } = await service.from(
+      "interviews",
+    )
       .update({ status: "analyzing" })
       .eq("id", body.interview_id)
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .eq("domain", body.domain_id)
+      .eq("status", "in_progress")
+      .select("id")
+      .maybeSingle();
+    if (statusErr || !interview) {
+      throw new HttpError(409, "interview_not_in_progress");
+    }
     reqLog.info("status.analyzing");
 
     // llm-prompt-b 호출 — 사용자 JWT를 그대로 forward
@@ -52,15 +61,10 @@ Deno.serve(async (req) => {
       }),
     });
     if (!resp.ok) {
-      // 분석 실패 — 상태 롤백
-      await service.from("interviews")
-        .update({ status: "in_progress" })
-        .eq("id", body.interview_id)
-        .eq("user_id", userId);
       reqLog.error("llm_prompt_b.failed", {
         http_status: resp.status,
         latency_ms: Math.round(performance.now() - llmStart),
-        rollback_status: "in_progress",
+        retained_status: "analyzing",
       });
       const text = await resp.text();
       throw new HttpError(resp.status, `analysis_failed: ${text}`);
@@ -71,7 +75,9 @@ Deno.serve(async (req) => {
     await service.from("interviews")
       .update({ status: "finalized", finalized_at: new Date().toISOString() })
       .eq("id", body.interview_id)
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .eq("domain", body.domain_id)
+      .eq("status", "analyzing");
     reqLog.info("finalize.ok", {
       analysis_id: analysisResult.analysis_id,
       total_latency_ms: Math.round(performance.now() - llmStart),

@@ -11,6 +11,7 @@ import {
   requireUserId,
 } from "../_shared/supabase.ts";
 import { loggerFor } from "../_shared/logger.ts";
+import { missingFinishedDomains } from "../_shared/flow-state.ts";
 
 Deno.serve(async (req) => {
   const log = loggerFor("publish");
@@ -29,14 +30,10 @@ Deno.serve(async (req) => {
       .from("interviews")
       .select("domain, status")
       .eq("user_id", userId);
-    const finishedDomains = new Set(
-      (interviews ?? []).filter((i) => i.status !== "in_progress").map((i) =>
-        i.domain
-      ),
-    );
-    if (finishedDomains.size < 6) {
+    const missing = missingFinishedDomains(interviews ?? []);
+    if (missing.length > 0) {
       reqLog.warn("not_all_domains_finished", {
-        finished_count: finishedDomains.size,
+        missing_domains: missing,
         total_required: 6,
       });
       throw new HttpError(400, "not_all_domains_finished");
@@ -50,6 +47,22 @@ Deno.serve(async (req) => {
       reqLog.warn("core_identity_missing");
       throw new HttpError(400, "core_identity_missing");
     }
+
+    const { data: pendingDealbreakers } = await service
+      .from("explicit_dealbreakers")
+      .select("id")
+      .eq("user_id", userId)
+      .is("canonical_target_id", null)
+      .limit(1);
+    if ((pendingDealbreakers?.length ?? 0) > 0) {
+      reqLog.warn("dealbreakers_not_normalized");
+      throw new HttpError(400, "dealbreakers_not_normalized");
+    }
+
+    await service.from("users")
+      .update({ profile_published_at: new Date().toISOString() })
+      .eq("id", userId)
+      .is("deleted_at", null);
 
     // 매칭 알고리즘 1단계 트리거 (비동기)
     const internalToken = Deno.env.get("INTERNAL_CALL_TOKEN") ?? "";
@@ -68,7 +81,7 @@ Deno.serve(async (req) => {
       })
     );
 
-    reqLog.info("publish.ok", { finished_domains: finishedDomains.size });
+    reqLog.info("publish.ok", { finished_domains: 6 });
     return jsonResponse({ status: "publishing", user_id: userId });
   } catch (err) {
     return handleError(err);

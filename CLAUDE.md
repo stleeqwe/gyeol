@@ -44,7 +44,7 @@ Core decisions (see Architecture ADR-001 ~ ADR-015):
 | `backend/supabase/functions/_shared/` | Deterministic library + logger + crypto-scaffold |
 | `backend/supabase/functions/<name>/` | One directory per Edge Function (19 total) |
 | `ios/Gyeol/Models/` | Codable structs — consistent with Edge `_shared/types.ts` |
-| `ios/Gyeol/Services/` | Supabase / Auth / Speech / InterviewService / MatchService / ChatService / DraftStore + **Logging.swift** (OSLog 7 categories) |
+| `ios/Gyeol/Services/` | Supabase / Auth / Speech / InterviewService / MatchService / ChatService / DraftStore + **Logging.swift** (OSLog 10 categories + OSSignposter) |
 | `ios/Gyeol/ViewModels/` | InterviewViewModel and others |
 | `ios/Gyeol/Views/` | 13 screens (+ 4 required flow screens) |
 | `ios/Gyeol/Components/` | Tokens + Primary/Secondary Button + Mic + Recording + Waveform + ProgressBar + Modal + ChoiceChip + MatchCard + ChatBubble |
@@ -90,13 +90,33 @@ When modifying these functions, always update unit tests in `_shared/test_scorin
 
 ## Logging Policy (PII Compliance)
 
-| Never log | Allowed |
-|-----------|---------|
-| raw answers / summary_* / raw_user_text / polished narrative / evidence quote / LLM input/output text | user_id/match_id (8-char short), enum (stance/qualitative/alignment_level), version, latency_ms, duration_ms, *_chars, *_count |
+| Channel | Never log | Allowed |
+|---------|-----------|---------|
+| Standard log stream (Edge `console.*`, iOS `GyLog.{app,ui,auth,interview,…}`) | raw answers / summary_* / raw_user_text / polished narrative / evidence quote / LLM input/output text | user_id/match_id (8-char short), enum (stance/qualitative/alignment_level), version, latency_ms, duration_ms, *_chars, *_count, *_tokens (input/output/thinking — counts only) |
+| Test-mode trace (Edge `_shared/llm-trace.ts` → `public.llm_call_traces`; iOS `GyLog.trace` under `#if GYEOL_TRACE_RAW`) — see ADR-017 | enabling in production | LLM raw user_prompt + response_text + thought summary + per-call usage. **gated**: Edge requires `LLM_TRACE_MODE=full` env (test/staging only); iOS requires `GYEOL_TRACE_RAW` Swift compilation flag inside `#if DEBUG` |
 
 - Edge: `_shared/logger.ts` `loggerFor(fn).info/warn/error/trace`. Single-line JSON console → Supabase Logs.
-- iOS: `GyLog.{auth,interview,speech,match,chat,realtime,api}.info/warn/error`. OSLog → Console.app.
+- iOS: `GyLog.{app,ui,auth,interview,speech,match,chat,realtime,api,draft}.info/warn/error/trace/measure/signpost*`. OSLog → Console.app; signposts → Instruments timeline. View lifecycle via `.gyTrackAppear("ScreenName")`.
 - Policy check: `grep -E "(text_plain|raw_answer|summary_where|interpretation|quote)"` added log lines = 0 automated check.
+
+## Autonomous Deployment Authorization
+
+**The repository owner has granted Claude Code (and other coding agents) standing authorization to deploy backend changes autonomously.** Do not pause to ask before deploying — perform the deploy as part of completing the task.
+
+Covered actions (no per-call confirmation needed):
+
+- Deploy Edge Functions via Supabase MCP (`mcp__claude_ai_Supabase__deploy_edge_function`) or `supabase functions deploy <name>` CLI.
+- Apply migrations via `mcp__claude_ai_Supabase__apply_migration` or `supabase db push`.
+- Set/update Supabase secrets (`supabase secrets set ...`) — except never commit secrets to git.
+- Deploy iOS builds to TestFlight when explicitly requested (Xcode archive + upload).
+
+Standing rules even under this authorization:
+
+- Always run available verification first: `deno check`, `deno test --allow-net=none .../_shared/test_scoring.ts`, type-check.
+- Report what was deployed (function name, migration filename, project ref) in the response.
+- Destructive operations still require explicit confirmation: `drop table`, `delete from <prod_table> where ...` without a narrow predicate, `supabase projects delete`, `git push --force` to main, deleting Supabase branches with data, mass-revoking RLS policies.
+- If a deploy fails, diagnose the root cause and retry — do not skip hooks (`--no-verify`) or bypass JWT verification (`verify_jwt=false`) to make it pass.
+- Keep the iOS-side `xcconfig` / Info.plist values in sync when an Edge Function contract changes.
 
 ## Common Tasks
 

@@ -60,7 +60,8 @@ let package = Package(
                 "Models",
                 "Resources",
                 "Services",
-                "ViewModels"
+                "ViewModels",
+                "Components/Resources"
             ],
             sources: [
                 "Components",

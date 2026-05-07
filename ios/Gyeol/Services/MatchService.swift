@@ -64,9 +64,10 @@ public final class MatchService: ObservableObject {
         GyLog.realtime.info("matches.subscribe.ok")
         Task {
             for await change in changes {
-                GyLog.realtime.debug("matches.change_received")
+                GyLog.realtime.info("matches.change_received", fields: ["action": describe(change)])
                 await self.handleChange(change)
             }
+            GyLog.realtime.info("matches.change_stream_ended", fields: ["user_id": userId.short])
         }
     }
 
@@ -80,6 +81,7 @@ public final class MatchService: ObservableObject {
 
     private func handleChange(_ change: AnyAction) async {
         // 단순화: 변경 발생 시 전체 리로드 (페이지 30 작음)
+        GyLog.match.info("realtime.reload_triggered", fields: ["action": describe(change)])
         await loadInitial()
     }
 
@@ -88,10 +90,12 @@ public final class MatchService: ObservableObject {
     public func ensureExplanation(matchId: UUID) async {
         struct Body: Encodable { let match_id: UUID }
         do {
-            try await client.functions.invoke(
-                "request-explanation",
-                options: .init(body: Body(match_id: matchId))
-            )
+            try await GyLog.match.trace("ensure_explanation", fields: ["match_id": matchId.short]) {
+                try await client.functions.invoke(
+                    "request-explanation",
+                    options: .init(body: Body(match_id: matchId))
+                )
+            }
             await loadInitial()
         } catch {
             GyLog.match.warn("explanation.request_failed", fields: [
@@ -103,12 +107,32 @@ public final class MatchService: ObservableObject {
 
     private func prepareRecommendations() async {
         struct Body: Encodable { let limit: Int }
+        struct Reply: Decodable {
+            let processedCount: Int?
+            let remainingCount: Int?
+
+            enum CodingKeys: String, CodingKey {
+                case processedCount = "processed_count"
+                case remainingCount = "remaining_count"
+            }
+        }
         do {
-            try await GyLog.match.trace("recommendations.prepare") {
-                try await client.functions.invoke(
-                    "request-explanation",
-                    options: .init(body: Body(limit: 30))
-                )
+            var remaining = 1
+            var attempts = 0
+            while remaining > 0 && attempts < 6 {
+                attempts += 1
+                let reply: Reply = try await GyLog.match.trace("recommendations.prepare", fields: [
+                    "attempt": String(attempts),
+                ]) {
+                    try await client.functions.invoke(
+                        "request-explanation",
+                        options: .init(body: Body(limit: 5))
+                    )
+                }
+                remaining = reply.remainingCount ?? 0
+                if remaining > 0 {
+                    try await Task.sleep(nanoseconds: 250_000_000)
+                }
             }
         } catch {
             self.lastError = error.localizedDescription
@@ -127,5 +151,14 @@ public final class MatchService: ObservableObject {
                 .eq("id", value: matchId.uuidString)
                 .execute()
         }
+    }
+}
+
+private func describe(_ action: AnyAction) -> String {
+    switch action {
+    case .insert: return "insert"
+    case .update: return "update"
+    case .delete: return "delete"
+    @unknown default: return "unknown"
     }
 }

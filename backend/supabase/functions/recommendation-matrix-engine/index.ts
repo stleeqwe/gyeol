@@ -198,6 +198,8 @@ Deno.serve(async (req) => {
               viewer_core_label: viewerCore.label,
               candidate_core_label: candidateCore.label,
               candidate_core_interpretation: candidateCore.interpretation,
+              viewer_id: m.viewer_id,
+              match_id: m.id,
             }),
           },
         );

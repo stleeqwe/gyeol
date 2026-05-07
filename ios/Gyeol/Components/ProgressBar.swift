@@ -1,6 +1,10 @@
-// 결 (Gyeol) — Progress + Modal + ChoiceChip
+// 결 (Gyeol) — Progress + Modal + ChoiceChip + LoadingDots
+// 결_디자인시스템_v1 §2.4.1, §2.4.2, §2.5.
 
 import SwiftUI
+
+// ─── Progress Bar ─────────────────────────────────────────
+// 명세 §2.4.1: h 1.5pt, divider bg, accent.primary fill, spring 0.5s.
 
 public struct GyProgressBar: View {
     public let current: Int
@@ -15,14 +19,48 @@ public struct GyProgressBar: View {
         let progress = Double(current) / Double(max(1, total))
         return GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Rectangle().fill(Color.gyDivider).frame(height: 2)
-                Rectangle().fill(Color.gyText).frame(width: geo.size.width * progress, height: 2)
-                    .animation(GyMotion.standard, value: progress)
+                Rectangle().fill(Color.gyeolDivider).frame(height: 1.5)
+                Rectangle().fill(Color.gyeolAccentPrimary)
+                    .frame(width: geo.size.width * progress, height: 1.5)
+                    .animation(.gyeolSlow, value: progress)
             }
+            .clipShape(Capsule())
         }
-        .frame(height: 2)
+        .frame(height: 1.5)
     }
 }
+
+// ─── Loading Dots ─────────────────────────────────────────
+// 명세 §2.4.2: 6×6 점 3개, gap 8, opacity 0.3↔1.0 + scale 0.8↔1.0, 1.4s ease infinite, stagger 0.2s.
+
+public struct LoadingDots: View {
+    @State private var animating: Bool = false
+
+    public init() {}
+
+    public var body: some View {
+        HStack(spacing: 8) {
+            ForEach(0..<3, id: \.self) { i in
+                Circle()
+                    .fill(Color.gyeolTextSecondary)
+                    .frame(width: 6, height: 6)
+                    .opacity(animating ? 1.0 : 0.3)
+                    .scaleEffect(animating ? 1.0 : 0.8)
+                    .animation(
+                        .easeInOut(duration: 1.4)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(i) * 0.2),
+                        value: animating
+                    )
+            }
+        }
+        .onAppear { animating = true }
+        .accessibilityLabel("불러오는 중")
+    }
+}
+
+// ─── Modal ────────────────────────────────────────────────
+// 명세 §2.5.1: w 320, radius 18, padding 24, title 16 SemiBold, body 13.5 Regular text.secondary.
 
 public struct GyModal<Content: View>: View {
     public let title: String
@@ -49,34 +87,42 @@ public struct GyModal<Content: View>: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: GySpace.sm) {
-            Text(title).font(GyType.headlineSM).foregroundColor(.gyText)
+        VStack(alignment: .leading, spacing: .gyeolSM) {
+            Text(title)
+                .font(.custom("Pretendard-SemiBold", fixedSize: 16))
+                .foregroundColor(.gyeolTextPrimary)
             content()
-                .font(GyType.bodySM)
-                .foregroundColor(.gyTextSecondary)
-                .lineSpacing(4)
-            Divider().background(Color.gyDivider).padding(.vertical, GySpace.xs)
-            HStack(spacing: GySpace.lg) {
-                Spacer()
+                .font(.custom("Pretendard-Regular", fixedSize: 13.5))
+                .foregroundColor(.gyeolTextSecondary)
+                .lineSpacing(13.5 * 0.55)
+            Divider().background(Color.gyeolDivider).padding(.vertical, .gyeolXS)
+            HStack(spacing: 0) {
                 Button(action: onSecondary) {
                     Text(secondaryLabel)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(.gyTextSecondary)
-                }.buttonStyle(.plain)
+                        .font(.custom("Pretendard-Medium", fixedSize: 15))
+                        .foregroundColor(.gyeolTextSecondary)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
+                Divider().background(Color.gyeolDivider).frame(width: 1, height: 24)
                 Button(action: onPrimary) {
                     Text(primaryLabel)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.gyAccent)
-                }.buttonStyle(.plain)
+                        .font(.custom("Pretendard-SemiBold", fixedSize: 15))
+                        .foregroundColor(.gyeolAccentPrimary)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
             }
         }
-        .padding(GySpace.lg)
+        .padding(.gyeolLG)
         .frame(width: 320)
-        .background(Color.gyBgElevated)
-        .clipShape(RoundedRectangle(cornerRadius: GyRadius.lg, style: .continuous))
-        .shadow(color: Color.black.opacity(0.08), radius: 16, y: 4)
+        .background(Color.gyeolBgElevated)
+        .clipShape(RoundedRectangle(cornerRadius: GyeolRadius.xxl, style: .continuous))
+        .shadow(color: Color.black.opacity(0.12), radius: 24, y: 8)
     }
 }
+
+// ─── ChoiceChip ───────────────────────────────────────────
 
 public struct ChoiceChip: View {
     public let label: String
@@ -90,28 +136,31 @@ public struct ChoiceChip: View {
     }
 
     public var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: GySpace.sm) {
+        Button(action: {
+            GyeolHaptic.selection()
+            onTap()
+        }) {
+            HStack(spacing: .gyeolSM) {
                 Circle()
-                    .stroke(isSelected ? Color.gyText : Color.gyDivider, lineWidth: 1)
+                    .stroke(isSelected ? Color.gyeolAccentPrimary : Color.gyeolBorder, lineWidth: 1)
                     .frame(width: 16, height: 16)
                     .overlay(
                         Circle()
-                            .fill(Color.gyText)
+                            .fill(Color.gyeolAccentPrimary)
                             .frame(width: 8, height: 8)
                             .opacity(isSelected ? 1 : 0)
                     )
                 Text(label)
-                    .font(GyType.bodyMD)
-                    .foregroundColor(.gyText)
+                    .gyeolStyle(.body)
+                    .foregroundColor(.gyeolTextPrimary)
                 Spacer()
             }
-            .padding(.vertical, GySpace.sm)
-            .padding(.horizontal, GySpace.md)
+            .padding(.vertical, .gyeolSM)
+            .padding(.horizontal, .gyeolMD)
             .background(Color.clear)
             .overlay(
-                RoundedRectangle(cornerRadius: GyRadius.md)
-                    .stroke(isSelected ? Color.gyText : Color.gyDivider, lineWidth: 1)
+                RoundedRectangle(cornerRadius: GyeolRadius.md)
+                    .stroke(isSelected ? Color.gyeolAccentPrimary : Color.gyeolBorder, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)

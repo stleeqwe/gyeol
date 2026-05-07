@@ -18,6 +18,7 @@ import {
   decodeMvpCiphertext,
   encodeMvpCiphertext,
 } from "../_shared/crypto-scaffold.ts";
+import { writeLlmTrace } from "../_shared/llm-trace.ts";
 import type { DomainAnalysis, DomainId } from "../_shared/types.ts";
 
 interface RequestBody {
@@ -38,6 +39,21 @@ Deno.serve(async (req) => {
     reqLog.info("analysis.start", { interview_id: body.interview_id });
 
     const service = getServiceRoleClient();
+    const { data: interview, error: interviewErr } = await service
+      .from("interviews")
+      .select("id, domain, status")
+      .eq("id", body.interview_id)
+      .eq("user_id", userId)
+      .eq("domain", body.domain_id)
+      .single();
+    if (interviewErr || !interview) {
+      reqLog.warn("interview_not_found", { error: interviewErr?.message });
+      throw new HttpError(404, "interview_not_found");
+    }
+    if (interview.status !== "analyzing") {
+      reqLog.warn("interview_not_analyzing", { status: interview.status });
+      throw new HttpError(409, "interview_not_analyzing");
+    }
 
     // 영역의 모든 답변 로드
     const { data: answers, error: ansErr } = await service
@@ -47,6 +63,7 @@ Deno.serve(async (req) => {
       )
       .eq("interview_id", body.interview_id)
       .eq("user_id", userId)
+      .eq("domain", body.domain_id)
       .order("seq", { ascending: true });
     if (ansErr || !answers || answers.length === 0) {
       reqLog.warn("no_answers", { error: ansErr?.message });
@@ -76,17 +93,22 @@ Deno.serve(async (req) => {
     const profileVersion = "v7";
     const assessmentVersion = "v7.1.0";
 
+    const userPromptB =
+      `# 영역\n${body.domain_id}\n\n# 사용자 답변 묶음\n${rawAnswers}`;
     const llmStart = performance.now();
-    const analysis = await callGeminiJson<DomainAnalysis>({
+    const { data: analysis, usage, thinkingSummary } = await callGeminiJson<
+      DomainAnalysis
+    >({
       model: "gemini-3-flash",
       systemPrompt: SYSTEM_PROMPT_B,
-      userPrompt:
-        `# 영역\n${body.domain_id}\n\n# 사용자 답변 묶음\n${rawAnswers}`,
+      userPrompt: userPromptB,
       temperature: 0.3,
-      maxOutputTokens: 4096,
+      maxOutputTokens: 8192,
+      thinkingLevel: "high",
     });
+    const llmLatencyMs = Math.round(performance.now() - llmStart);
     reqLog.info("llm.ok", {
-      llm_latency_ms: Math.round(performance.now() - llmStart),
+      llm_latency_ms: llmLatencyMs,
       prompt_version: PROMPT_VERSION.B,
       model: "gemini-3-flash",
       principle_count: analysis.structured?.principle_mix?.length ?? 0,
@@ -97,6 +119,25 @@ Deno.serve(async (req) => {
       evidence_count: analysis.answer_evidence?.length ?? 0,
       depth_level: analysis.structured?.depth_level,
       confidence: analysis.structured?.confidence_level,
+      input_tokens: usage?.inputTokens ?? 0,
+      output_tokens: usage?.outputTokens ?? 0,
+      thinking_tokens: usage?.thinkingTokens ?? 0,
+    });
+
+    await writeLlmTrace(service, {
+      userId,
+      functionName: "llm-prompt-b",
+      promptVersion: PROMPT_VERSION.B,
+      modelId: "gemini-3-flash",
+      thinkingLevel: "high",
+      domain: body.domain_id,
+      interviewId: body.interview_id,
+    }, {
+      userPrompt: userPromptB,
+      responseText: JSON.stringify(analysis),
+      thinkingSummary,
+      usage,
+      latencyMs: llmLatencyMs,
     });
 
     // raw quote 감지 (1차 — LLM이 따랐는지 검증)
@@ -149,7 +190,12 @@ Deno.serve(async (req) => {
       .single();
     if (anaErr || !ana) throw new HttpError(500, "analysis_insert_failed");
 
-    // answer_evidence insert (격리)
+    // answer_evidence replace (격리)
+    await service.from("answer_evidence")
+      .delete()
+      .eq("analysis_id", ana.id)
+      .eq("user_id", userId);
+
     if (analysis.answer_evidence?.length) {
       const rows = analysis.answer_evidence.map((ev) => ({
         analysis_id: ana.id,

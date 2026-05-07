@@ -90,6 +90,12 @@ verify_jwt = true
 [functions.bootstrap-user]
 verify_jwt = true
 
+[functions.get-or-create-interview]
+verify_jwt = true
+
+[functions.submit-consent]
+verify_jwt = true
+
 [functions.submit-answer]
 verify_jwt = true
 

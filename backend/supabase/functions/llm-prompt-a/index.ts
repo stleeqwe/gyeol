@@ -14,6 +14,7 @@ import { callGeminiJson } from "../_shared/vertex.ts";
 import { PROMPT_VERSION, SYSTEM_PROMPT_A } from "../_shared/prompts.ts";
 import { loggerFor } from "../_shared/logger.ts";
 import { decodeMvpCiphertext } from "../_shared/crypto-scaffold.ts";
+import { writeLlmTrace } from "../_shared/llm-trace.ts";
 import type { DomainId } from "../_shared/types.ts";
 
 interface RequestBody {
@@ -54,7 +55,7 @@ Deno.serve(async (req) => {
       throw new HttpError(404, "parent_answer_not_found");
     }
     if (
-      parent.interview_id !== body.interview_id ||
+      parent.interview_id.toLowerCase() !== body.interview_id.toLowerCase() ||
       parent.domain !== body.domain_id
     ) {
       reqLog.warn("context_mismatch");
@@ -68,12 +69,15 @@ Deno.serve(async (req) => {
       `# 영역\n${body.domain_id}\n\n# 사용자 답변\n${decrypted}\n\n# 깊이 단계\n${parent.depth_level}`;
 
     const llmStart = performance.now();
-    const response = await callGeminiJson<PromptAResponse>({
+    const { data: response, usage, thinkingSummary } = await callGeminiJson<
+      PromptAResponse
+    >({
       model: "gemini-3-flash",
       systemPrompt: SYSTEM_PROMPT_A,
       userPrompt,
       temperature: 0.6,
-      maxOutputTokens: 600,
+      maxOutputTokens: 2048,
+      thinkingLevel: "high",
       jsonSchema: {
         type: "object",
         required: ["follow_up_question", "rationale_internal"],
@@ -83,12 +87,33 @@ Deno.serve(async (req) => {
         },
       },
     });
+    const llmLatencyMs = Math.round(performance.now() - llmStart);
     reqLog.info("follow_up.ok", {
       depth_level: parent.depth_level,
-      llm_latency_ms: Math.round(performance.now() - llmStart),
+      llm_latency_ms: llmLatencyMs,
       prompt_version: PROMPT_VERSION.A,
       model: "gemini-3-flash",
       question_chars: response.follow_up_question.length,
+      input_tokens: usage?.inputTokens ?? 0,
+      output_tokens: usage?.outputTokens ?? 0,
+      thinking_tokens: usage?.thinkingTokens ?? 0,
+    });
+
+    await writeLlmTrace(service, {
+      userId,
+      functionName: "llm-prompt-a",
+      promptVersion: PROMPT_VERSION.A,
+      modelId: "gemini-3-flash",
+      thinkingLevel: "high",
+      domain: body.domain_id,
+      interviewId: body.interview_id,
+      parentAnswerId: body.parent_answer_id,
+    }, {
+      userPrompt,
+      responseText: JSON.stringify(response),
+      thinkingSummary,
+      usage,
+      latencyMs: llmLatencyMs,
     });
 
     return jsonResponse({

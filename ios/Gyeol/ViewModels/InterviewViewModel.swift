@@ -26,17 +26,31 @@ public final class InterviewViewModel: ObservableObject {
     }
 
     public func bootstrap() async {
+        GyLog.interview.info("vm.bootstrap.start", fields: ["domain": domain.rawValue])
         do {
             let row = try await InterviewService.shared.getOrCreateInterview(domain: domain)
             self.interview = row
             self.isFinalized = row.status == .finalized
+            GyLog.interview.info("vm.bootstrap.ok", fields: [
+                "domain": domain.rawValue,
+                "interview_id": row.id.short,
+                "status": row.status.rawValue,
+                "is_finalized": String(self.isFinalized),
+            ])
         } catch {
             self.errorMessage = error.localizedDescription
+            GyLog.interview.error("vm.bootstrap.fail", error: error, fields: ["domain": domain.rawValue])
         }
     }
 
     public func submitOpenAnswer(voiceInputSeconds: Int? = nil) async {
-        guard let interview, !currentDraft.isEmpty else { return }
+        guard let interview, !currentDraft.isEmpty else {
+            GyLog.interview.debug("vm.submit_open.skipped", fields: [
+                "has_interview": String(interview != nil),
+                "has_draft": String(!currentDraft.isEmpty),
+            ])
+            return
+        }
         let plain = currentDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !plain.isEmpty else { return }
         let payload = InterviewService.AnswerSubmit(
@@ -55,7 +69,14 @@ public final class InterviewViewModel: ObservableObject {
     }
 
     public func submitFollowUpAnswer(voiceInputSeconds: Int? = nil) async {
-        guard let interview, !currentDraft.isEmpty, let parent = answers.last else { return }
+        guard let interview, !currentDraft.isEmpty, let parent = answers.last else {
+            GyLog.interview.debug("vm.submit_follow.skipped", fields: [
+                "has_interview": String(interview != nil),
+                "has_draft": String(!currentDraft.isEmpty),
+                "has_parent": String(answers.last != nil),
+            ])
+            return
+        }
         let plain = currentDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !plain.isEmpty else { return }
         let payload = InterviewService.AnswerSubmit(
@@ -78,14 +99,29 @@ public final class InterviewViewModel: ObservableObject {
             let saved = try await InterviewService.shared.submitAnswer(payload)
             self.answers.append(saved)
             self.currentDraft = ""
+            GyLog.interview.info("vm.submit.ok", fields: [
+                "domain": domain.rawValue,
+                "answer_id": saved.id.short,
+                "answers_total": String(self.answers.count),
+            ])
             await generateFollowUp(for: saved)
         } catch {
             self.errorMessage = error.localizedDescription
+            GyLog.interview.error("vm.submit.fail", error: error, fields: [
+                "domain": domain.rawValue,
+                "seq": String(payload.seq),
+            ])
         }
     }
 
     private func generateFollowUp(for answer: InterviewAnswer) async {
-        guard let interview, answers.count < 5 else { return }   // 영역당 최대 4-5 답변
+        guard let interview, answers.count < 5 else {
+            GyLog.interview.info("vm.follow_up.skipped_max_depth", fields: [
+                "domain": domain.rawValue,
+                "answers": String(answers.count),
+            ])
+            return
+        }   // 영역당 최대 4-5 답변
         self.pendingFollowUp = true
         defer { self.pendingFollowUp = false }
         do {
@@ -95,8 +131,15 @@ public final class InterviewViewModel: ObservableObject {
                 parentAnswerId: answer.id
             )
             self.followUpQuestion = q
+            GyLog.interview.info("vm.follow_up.received", fields: [
+                "domain": domain.rawValue,
+                "question_chars": String(q.count),
+            ])
         } catch {
             self.errorMessage = error.localizedDescription
+            GyLog.interview.error("vm.follow_up.fail", error: error, fields: [
+                "domain": domain.rawValue,
+            ])
         }
     }
 

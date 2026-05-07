@@ -12,48 +12,52 @@ public struct OnboardingScreen: View {
 
     public var body: some View {
         ScrollView {
-            VStack(spacing: GySpace.lg) {
-                Spacer().frame(height: GySpace.section)
+            VStack(spacing: .gyeolLG) {
+                Spacer().frame(height: .gyeol4XL)
                 Image(systemName: "circle.dotted")
                     .font(.system(size: 24, weight: .light))
-                    .foregroundColor(.gyText)
+                    .foregroundColor(.gyeolTextPrimary)
                 Text("결")
-                    .font(GyType.brand())
-                    .foregroundColor(.gyText)
+                    .gyeolStyle(.display)
+                    .foregroundColor(.gyeolTextPrimary)
                 Text("GYEOL")
-                    .font(GyType.subBrand)
-                    .tracking(2)
-                    .foregroundColor(.gyTextSecondary)
-                Spacer().frame(height: GySpace.lg)
+                    .font(.custom("Pretendard-Medium", fixedSize: 11))
+                    .kerning(2)
+                    .foregroundColor(.gyeolTextSecondary)
+                Spacer().frame(height: .gyeolLG)
 
-                VStack(alignment: .leading, spacing: GySpace.lg) {
+                VStack(alignment: .leading, spacing: .gyeolLG) {
                     Text("결은 결혼 또는 매우 진지한 장기 연애를 고민하는 분들을 위한 가치관 매칭 앱입니다.")
                     Text("외모나 스펙보다, 당신이 무엇을 믿고 어디서 물러서지 않는지를 묻습니다.")
                     Text("질문은 가볍지 않습니다. 어떤 질문은 불편할 수 있습니다. 당신의 신념이 어디서 흔들리는지, 어디서 양보할 수 없는지를 마주하게 될 수 있습니다.")
                     Text("그 불편함 속에서 사람의 결이 드러납니다.")
                     Text("가벼운 만남이나 친구를 찾는 분들에게는 부담만 큰 앱입니다.")
-                        .foregroundColor(.gyTextTertiary)
+                        .foregroundColor(.gyeolTextTertiary)
                 }
-                .font(GyType.bodyLG)
-                .foregroundColor(.gyText)
-                .padding(.horizontal, GySpace.lg)
-                Spacer().frame(height: GySpace.xl)
+                .gyeolStyle(.body)
+                .foregroundColor(.gyeolTextPrimary)
+                .padding(.horizontal, .gyeolLG)
+                Spacer().frame(height: .gyeolXL)
             }
         }
-        .background(Color.gyBg.ignoresSafeArea())
+        .background(Color.gyeolBgPrimary.ignoresSafeArea())
         .safeAreaInset(edge: .bottom) {
             NavigationLink(value: OnboardingRoute.signIn) {
-                Text("시작하기")
-                    .font(GyType.cta)
-                    .foregroundColor(.gyAccentContrast)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 56)
-                    .background(Color.gyAccent)
-                    .clipShape(RoundedRectangle(cornerRadius: GyRadius.cta, style: .continuous))
-                    .padding(.horizontal, GySpace.lg)
-                    .padding(.bottom, GySpace.md)
-            }.buttonStyle(.plain)
+                HStack {
+                    Spacer()
+                    Text("시작하기").gyeolStyle(.cta)
+                    Spacer()
+                }
+            }
+            .simultaneousGesture(TapGesture().onEnded {
+                GyLog.ui.info("onboarding.cta_tap", fields: ["route": "sign_in"])
+                GyeolHaptic.medium()
+            })
+            .buttonStyle(GyeolPrimaryButtonStyle())
+            .padding(.horizontal, .gyeolLG)
+            .padding(.bottom, .gyeolMD)
         }
+        .gyTrackAppear("OnboardingScreen")
     }
 }
 
@@ -67,39 +71,38 @@ public struct SignInScreen: View {
     public init() {}
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: GySpace.lg) {
-            Spacer().frame(height: GySpace.xxl)
+        VStack(alignment: .leading, spacing: .gyeolLG) {
+            Spacer().frame(height: .gyeol2XL)
             Text("결을 시작하려면\nApple ID로 로그인해주세요.")
-                .font(GyType.headlineLG)
-                .foregroundColor(.gyText)
-                .lineSpacing(8)
-            Spacer().frame(height: GySpace.xl)
-            Button(action: { auth.startAppleSignIn() }) {
-                HStack(spacing: GySpace.xs) {
+                .gyeolStyle(.title1)
+                .foregroundColor(.gyeolTextPrimary)
+            Spacer().frame(height: .gyeolXL)
+            Button(action: {
+                GyLog.ui.info("sign_in.cta_tap")
+                GyeolHaptic.medium()
+                auth.startAppleSignIn()
+            }) {
+                HStack(spacing: .gyeolSM) {
                     Image(systemName: "applelogo")
-                    Text("Apple로 계속하기")
+                    Text("Apple로 계속하기").gyeolStyle(.cta)
                 }
-                .font(GyType.cta)
-                .foregroundColor(.gyAccentContrast)
                 .frame(maxWidth: .infinity)
-                .frame(height: 56)
-                .background(Color.gyAccent)
-                .clipShape(RoundedRectangle(cornerRadius: GyRadius.cta, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(GyeolPrimaryButtonStyle())
             .disabled(auth.isProcessing)
 
             Text("결은 한 명당 하나의 계정만 허용합니다.")
-                .font(GyType.bodySM)
-                .foregroundColor(.gyTextTertiary)
+                .gyeolStyle(.caption2)
+                .foregroundColor(.gyeolTextTertiary)
                 .frame(maxWidth: .infinity)
             if let err = auth.lastError {
-                Text(err).font(GyType.bodySM).foregroundColor(.red)
+                Text(err).gyeolStyle(.caption2).foregroundColor(.red)
             }
             Spacer()
         }
-        .padding(.horizontal, GySpace.lg)
-        .background(Color.gyBg.ignoresSafeArea())
+        .padding(.horizontal, .gyeolLG)
+        .background(Color.gyeolBgPrimary.ignoresSafeArea())
+        .gyTrackAppear("SignInScreen")
     }
 }
 
@@ -123,24 +126,30 @@ public struct ConsentScreen: View {
 
     public var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: GySpace.lg) {
+            VStack(alignment: .leading, spacing: .gyeolLG) {
                 Text("처리 동의")
-                    .font(GyType.headlineLG)
-                    .foregroundColor(.gyText)
+                    .gyeolStyle(.title1)
+                    .foregroundColor(.gyeolTextPrimary)
                 Text("결 사용을 위해 다음 5가지에 별도 동의가 필요합니다. 본 동의는 언제든 철회할 수 있습니다.")
-                    .font(GyType.bodyMD)
-                    .foregroundColor(.gyTextSecondary)
-                    .lineSpacing(4)
+                    .gyeolStyle(.body)
+                    .foregroundColor(.gyeolTextSecondary)
 
-                VStack(alignment: .leading, spacing: GySpace.md) {
+                VStack(alignment: .leading, spacing: .gyeolMD) {
                     ForEach(items.indices, id: \.self) { i in
-                        Button(action: { checks[i].toggle() }) {
-                            HStack(alignment: .top, spacing: GySpace.sm) {
+                        Button(action: {
+                            GyeolHaptic.selection()
+                            checks[i].toggle()
+                        }) {
+                            HStack(alignment: .top, spacing: 12) {
                                 Image(systemName: checks[i] ? "checkmark.square.fill" : "square")
-                                    .foregroundColor(checks[i] ? .gyAccent : .gyDivider)
-                                VStack(alignment: .leading, spacing: GySpace.xxs) {
-                                    Text(items[i].0).font(GyType.headlineSM).foregroundColor(.gyText)
-                                    Text(items[i].1).font(GyType.bodySM).foregroundColor(.gyTextSecondary).lineSpacing(4)
+                                    .foregroundColor(checks[i] ? .gyeolAccentPrimary : .gyeolBorder)
+                                VStack(alignment: .leading, spacing: .gyeolXS) {
+                                    Text(items[i].0)
+                                        .gyeolStyle(.bodyLarge)
+                                        .foregroundColor(.gyeolTextPrimary)
+                                    Text(items[i].1)
+                                        .gyeolStyle(.caption2)
+                                        .foregroundColor(.gyeolTextSecondary)
                                 }
                             }
                         }
@@ -148,8 +157,12 @@ public struct ConsentScreen: View {
                     }
                 }
 
-                Spacer().frame(height: GySpace.lg)
+                Spacer().frame(height: .gyeolLG)
                 PrimaryButton("모두 동의하고 시작", isEnabled: checks.allSatisfy({ $0 })) {
+                    GyLog.ui.info("consent.confirm_tap", fields: [
+                        "all_checked": String(checks.allSatisfy { $0 }),
+                    ])
+                    GyeolHaptic.medium()
                     Task {
                         isProcessing = true
                         defer { isProcessing = false }
@@ -157,114 +170,24 @@ public struct ConsentScreen: View {
                             try await auth.recordConsent(consentTextVersion: "v7.0")
                         } catch {
                             errorMessage = error.localizedDescription
+                            GyeolHaptic.error()
+                            GyLog.auth.error("consent.record_failed", error: error)
                         }
                     }
                 }
                 .disabled(isProcessing)
                 if let errorMessage {
                     Text(errorMessage)
-                        .font(GyType.bodySM)
+                        .gyeolStyle(.caption2)
                         .foregroundColor(.red)
                 }
             }
-            .padding(GySpace.lg)
+            .padding(.gyeolLG)
         }
-        .background(Color.gyBg.ignoresSafeArea())
+        .background(Color.gyeolBgPrimary.ignoresSafeArea())
+        .gyTrackAppear("ConsentScreen")
     }
 }
 
-// ─── 인터뷰 홈 (영역 선택) ─────────────────────────────────
-
-public struct InterviewHomeScreen: View {
-    public init() {}
-
-    public var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: GySpace.lg) {
-                Spacer().frame(height: GySpace.lg)
-                Text("6영역의 결을 살펴봅니다.")
-                    .font(GyType.headlineLG)
-                    .foregroundColor(.gyText)
-                Text("한 영역씩 진행해주세요. 답변은 언제든 저장됩니다.")
-                    .font(GyType.bodyMD)
-                    .foregroundColor(.gyTextSecondary)
-
-                VStack(alignment: .leading, spacing: GySpace.md) {
-                    ForEach(DomainID.allCases, id: \.self) { d in
-                        NavigationLink(value: InterviewRoute.intro(d)) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: GySpace.xs) {
-                                    Text("영역 0\(d.indexNumber)")
-                                        .font(GyType.caption).foregroundColor(.gyTextTertiary)
-                                    Text(d.labelKo)
-                                        .font(GyType.headlineMD).foregroundColor(.gyText)
-                                }
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(.gyTextTertiary)
-                            }
-                            .padding(GySpace.lg)
-                            .background(Color.gyBgElevated)
-                            .clipShape(RoundedRectangle(cornerRadius: GyRadius.lg))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-
-                Text("명시 Dealbreaker")
-                    .font(GyType.caption)
-                    .foregroundColor(.gyTextTertiary)
-                VStack(alignment: .leading, spacing: GySpace.md) {
-                    ForEach(DomainID.allCases, id: \.self) { d in
-                        NavigationLink(value: InterviewRoute.dealbreaker(d)) {
-                            HStack {
-                                Text(d.labelKo)
-                                    .font(GyType.headlineSM)
-                                    .foregroundColor(.gyText)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(.gyTextTertiary)
-                            }
-                            .padding(GySpace.md)
-                            .background(Color.gyBgSubtle)
-                            .clipShape(RoundedRectangle(cornerRadius: GyRadius.md))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-
-                Spacer().frame(height: GySpace.xl)
-                NavigationLink(value: InterviewRoute.review) {
-                    HStack {
-                        Text("발행 직전 본인 검토")
-                            .font(GyType.headlineSM)
-                            .foregroundColor(.gyText)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.gyTextTertiary)
-                    }
-                    .padding(GySpace.lg)
-                    .background(Color.gyBgSubtle)
-                    .clipShape(RoundedRectangle(cornerRadius: GyRadius.md))
-                }.buttonStyle(.plain)
-            }
-            .padding(.horizontal, GySpace.lg)
-        }
-        .background(Color.gyBg.ignoresSafeArea())
-        .navigationTitle("인터뷰")
-        .gyNavigationBarTitleDisplayModeInline()
-        .navigationDestination(for: InterviewRoute.self) { r in
-            switch r {
-            case .intro(let d): InterviewIntroScreen(domain: d)
-            case .dealbreaker(let d): DealbreakerInputScreen(domain: d)
-            case .review: SelfReviewScreen()
-            }
-        }
-    }
-}
-
-public enum InterviewRoute: Hashable {
-    case intro(DomainID)
-    case dealbreaker(DomainID)
-    case review
-}
+// InterviewHomeScreen + InterviewRoute는 발행 전 선형 흐름 도입과 함께 제거됨
+// (이전 hub-style 진입점 → InterviewShellView로 대체. RootView가 publishState로 분기.)

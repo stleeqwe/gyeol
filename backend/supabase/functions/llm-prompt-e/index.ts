@@ -14,11 +14,16 @@ import { callGeminiJson } from "../_shared/vertex.ts";
 import { PROMPT_VERSION, SYSTEM_PROMPT_E } from "../_shared/prompts.ts";
 import { loggerFor } from "../_shared/logger.ts";
 import { decodeMvpCiphertext } from "../_shared/crypto-scaffold.ts";
+import { writeLlmTrace } from "../_shared/llm-trace.ts";
 import type { DomainId, Intensity, Scope, Stance } from "../_shared/types.ts";
+import {
+  buildDealbreakerNormalizationInputs,
+  mapNormalizedDealbreakerItems,
+} from "../_shared/dealbreaker-normalization.ts";
 
 interface PromptEItem {
+  input_id: string;
   domain_id: DomainId;
-  raw_user_text_excerpt_internal_only: string;
   canonical_target_id: string | null;
   unacceptable_stances: Stance[];
   intensity_min_for_conflict: Intensity;
@@ -48,7 +53,9 @@ Deno.serve(async (req) => {
       .from("explicit_dealbreakers")
       .select("id, domain, seq, raw_user_text_ciphertext")
       .eq("user_id", userId)
-      .is("canonical_target_id", null);
+      .is("canonical_target_id", null)
+      .order("domain", { ascending: true })
+      .order("seq", { ascending: true });
     if (error) {
       reqLog.error("load_failed", { error: error.message });
       throw new HttpError(500, "load_failed");
@@ -69,9 +76,12 @@ Deno.serve(async (req) => {
       }`
     ).join("\n");
 
-    const userInputs = dealbreakers.map((d) => {
-      const text = decodeMvpCiphertext(d.raw_user_text_ciphertext);
-      return `- id=${d.id} | domain=${d.domain} | text="${text}"`;
+    const inputs = buildDealbreakerNormalizationInputs(dealbreakers);
+    const userInputs = inputs.map((input) => {
+      const text = decodeMvpCiphertext(
+        input.row.raw_user_text_ciphertext ?? "",
+      );
+      return `- input_id=${input.input_id} | domain=${input.row.domain} | seq=${input.row.seq} | text="${text}"`;
     }).join("\n");
 
     const userPrompt = `
@@ -81,30 +91,59 @@ ${dictionary}
 # 사용자 입력
 ${userInputs}
 
-각 입력을 canonical_target_id로 매핑하고 unacceptable_stances + intensity + scope를 설정.
+각 입력을 input_id 기준으로 canonical_target_id에 매핑하고 unacceptable_stances + intensity + scope를 설정.
+결과 items에는 모든 input_id가 정확히 한 번씩 포함되어야 합니다.
 `;
 
     const llmStart = performance.now();
-    const result = await callGeminiJson<PromptEResponse>({
+    const { data: result, usage, thinkingSummary } = await callGeminiJson<
+      PromptEResponse
+    >({
       model: "gemini-3.1-flash-lite",
       systemPrompt: SYSTEM_PROMPT_E,
       userPrompt,
       temperature: 0.2,
       maxOutputTokens: 2048,
+      thinkingLevel: "high",
     });
+    const llmLatencyMs = Math.round(performance.now() - llmStart);
     reqLog.info("llm.ok", {
-      llm_latency_ms: Math.round(performance.now() - llmStart),
+      llm_latency_ms: llmLatencyMs,
       prompt_version: PROMPT_VERSION.E,
       model: "gemini-3.1-flash-lite",
       result_count: result.items.length,
+      input_tokens: usage?.inputTokens ?? 0,
+      output_tokens: usage?.outputTokens ?? 0,
+      thinking_tokens: usage?.thinkingTokens ?? 0,
+    });
+
+    await writeLlmTrace(service, {
+      userId,
+      functionName: "llm-prompt-e",
+      promptVersion: PROMPT_VERSION.E,
+      modelId: "gemini-3.1-flash-lite",
+      thinkingLevel: "high",
+    }, {
+      userPrompt,
+      responseText: JSON.stringify(result),
+      thinkingSummary,
+      usage,
+      latencyMs: llmLatencyMs,
     });
 
     // 결과를 dealbreaker row에 반영
     let mapped = 0;
     let unmapped = 0;
-    for (let i = 0; i < dealbreakers.length && i < result.items.length; i++) {
-      const item = result.items[i];
-      const row = dealbreakers[i];
+    let mappedItems;
+    try {
+      mappedItems = mapNormalizedDealbreakerItems(inputs, result.items);
+    } catch (err) {
+      const message = (err as Error).message;
+      reqLog.warn("mapping_failed", { reason: message });
+      throw new HttpError(422, message);
+    }
+
+    for (const { row, item } of mappedItems) {
       if (item.canonical_target_id) {
         mapped++;
         await service.from("explicit_dealbreakers")

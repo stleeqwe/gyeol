@@ -4,206 +4,124 @@ import SwiftUI
 import GyeolCore
 import GyeolDomain
 
-// ─── 화면 9: 명시 Dealbreaker 입력 ──────────────────────
+// 단일 화면 + 6영역 아코디언으로 통합 — DealbreakersScreen / DealbreakersReviewScreen 참조.
+// 기존 화면 9 (per-도메인 DealbreakerInputScreen)는 hub 흐름과 함께 제거됨.
 
-public struct DealbreakerInputScreen: View {
-    @Environment(\.dismiss) private var dismiss
-    public let domain: DomainID
-    @State private var text: String = ""
-    @State private var showExamples: Bool = false
-    @State private var isSaving: Bool = false
-    @State private var errorMessage: String?
-
-    public init(domain: DomainID) {
-        self.domain = domain
-    }
-
-    private var examples: [String] {
-        switch domain {
-        case .belief:
-            return ["강한 종교적 신앙이 삶의 중심인 사람", "결혼 시 개종을 요구하는 사람", "자녀 종교 교육을 강요하는 사람"]
-        case .society:
-            return ["개인 책임만을 강조하며 구조적 불평등을 부정하는 사람", "특정 집단에 대한 강한 편견을 가진 사람"]
-        case .bioethics:
-            return ["임신중지를 절대 허용하지 않는 사람", "신체 자기결정권을 부정하는 사람"]
-        case .family:
-            return ["부모 의견에 본인 결정을 완전히 종속시키는 사람", "결혼 시 자녀를 반드시 가져야 한다고 강요하는 사람"]
-        case .work_life:
-            return ["관계 시간을 야망에 항상 양보시키는 사람"]
-        case .intimacy:
-            return ["불륜·외도 경험을 가벼이 보는 사람", "물리적·언어적 폭력 사용 사람"]
-        }
-    }
-
-    public var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: GySpace.lg) {
-                Spacer().frame(height: GySpace.xs)
-                Text("영역 0\(domain.indexNumber)")
-                    .font(GyType.caption).foregroundColor(.gyTextTertiary)
-                Text(domain.labelKo)
-                    .font(GyType.headlineMD).foregroundColor(.gyText)
-                Text("이 영역에서 절대 만날 수 없는 결의 사람이 있다면 적어주세요.")
-                    .font(GyType.bodyMD).foregroundColor(.gyTextSecondary).lineSpacing(4)
-
-                ZStack(alignment: .topLeading) {
-                    if text.isEmpty {
-                        Text("자유롭게 적어주세요. 빈 칸으로 두셔도 됩니다.")
-                            .font(GyType.bodyLG).foregroundColor(.gyTextDisabled)
-                            .padding(GySpace.md)
-                    }
-                    TextEditor(text: $text)
-                        .font(GyType.bodyLG).foregroundColor(.gyText)
-                        .scrollContentBackground(.hidden)
-                        .frame(minHeight: 140)
-                        .padding(GySpace.xs)
-                }
-                .background(Color.gyBgSubtle)
-                .clipShape(RoundedRectangle(cornerRadius: GyRadius.md))
-
-                DisclosureGroup(isExpanded: $showExamples) {
-                    VStack(alignment: .leading, spacing: GySpace.xs) {
-                        ForEach(examples, id: \.self) { e in
-                            Text("— \(e)").font(GyType.bodySM).foregroundColor(.gyTextSecondary)
-                        }
-                    }
-                    .padding(.top, GySpace.xs)
-                } label: {
-                    Text("예시 보기").font(GyType.bodySM).foregroundColor(.gyTextSecondary)
-                }
-                .accentColor(.gyTextSecondary)
-
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(GyType.bodySM)
-                        .foregroundColor(.red)
-                }
-
-                Spacer().frame(height: GySpace.xl)
-            }
-            .padding(.horizontal, GySpace.lg)
-        }
-        .background(Color.gyBg.ignoresSafeArea())
-        .safeAreaInset(edge: .bottom) {
-            VStack(spacing: GySpace.xs) {
-                Button("이 영역은 비워둘게요") {
-                    Task { await save(rawTexts: []) }
-                }
-                    .font(GyType.bodySM).foregroundColor(.gyTextSecondary)
-                    .disabled(isSaving)
-                PrimaryButton(isSaving ? "저장 중..." : "다음 영역으로", isEnabled: !isSaving) {
-                    Task { await save(rawTexts: normalizedInputs()) }
-                }
-                    .padding(.bottom, GySpace.md)
-            }
-        }
-    }
-
-    private func normalizedInputs() -> [String] {
-        text
-            .split(whereSeparator: \.isNewline)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-    }
-
-    private func save(rawTexts: [String]) async {
-        isSaving = true
-        defer { isSaving = false }
-        do {
-            try await InterviewService.shared.submitDealbreakers(domain: domain, rawTexts: rawTexts)
-            dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-}
-
-// ─── 화면 10: 본인 검토 (발행 직전) ─────────────────────
+// ─── 화면 10: 본인 검토 (발행 직전 / 프로필 다시 보기) ──
 
 public struct SelfReviewScreen: View {
+    @EnvironmentObject private var auth: AuthService
     @State private var analyses: [DomainAnalysis] = []
     @State private var core: CoreIdentity?
     @State private var isLoading: Bool = true
     @State private var publishing: Bool = false
     @State private var publishedOK: Bool = false
     @State private var errorMessage: String?
+    private let isReviewOnly: Bool
 
-    public init() {}
+    public init(isReviewOnly: Bool = false) {
+        self.isReviewOnly = isReviewOnly
+    }
 
     public var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: GySpace.lg) {
-                Spacer().frame(height: GySpace.lg)
-                Text("발행 직전 본인 검토")
-                    .font(GyType.headlineLG).foregroundColor(.gyText)
+            VStack(alignment: .leading, spacing: .gyeolLG) {
+                Spacer().frame(height: .gyeolLG)
+                Text(isReviewOnly ? "내 답변 다시 보기" : "발행 직전 본인 검토")
+                    .gyeolStyle(.title1)
+                    .foregroundColor(.gyeolTextPrimary)
+                if isReviewOnly {
+                    Text("이미 발행됨 — 검토 전용입니다.")
+                        .gyeolStyle(.caption2)
+                        .foregroundColor(.gyeolTextTertiary)
+                }
                 if isLoading {
-                    Text("검토 자료를 준비하고 있습니다.")
-                        .font(GyType.bodyMD)
-                        .foregroundColor(.gyTextSecondary)
+                    HStack(spacing: .gyeolSM) {
+                        LoadingDots()
+                        Text("검토 자료를 준비하고 있습니다.")
+                            .gyeolStyle(.body)
+                            .foregroundColor(.gyeolTextSecondary)
+                    }
                 }
                 if let errorMessage {
                     Text(errorMessage)
-                        .font(GyType.bodySM)
+                        .gyeolStyle(.caption2)
                         .foregroundColor(.red)
                 }
                 if let c = core {
-                    VStack(alignment: .leading, spacing: GySpace.xs) {
-                        Text("통합 핵심 유형").font(GyType.caption).foregroundColor(.gyTextTertiary)
-                        Text(c.label).font(GyType.headlineMD).foregroundColor(.gyText)
-                        Text(c.interpretation).font(GyType.bodyMD).foregroundColor(.gyTextSecondary).lineSpacing(4)
+                    VStack(alignment: .leading, spacing: .gyeolSM) {
+                        Text("통합 핵심 유형")
+                            .gyeolStyle(.caption2)
+                            .foregroundColor(.gyeolTextTertiary)
+                        Text(c.label)
+                            .gyeolStyle(.display)
+                            .foregroundColor(.gyeolTextPrimary)
+                        Text(c.interpretation)
+                            .gyeolStyle(.body)
+                            .foregroundColor(.gyeolTextSecondary)
                     }
-                    .padding(GySpace.lg)
-                    .background(Color.gyBgElevated)
-                    .clipShape(RoundedRectangle(cornerRadius: GyRadius.lg))
+                    .padding(.gyeolLG)
+                    .background(Color.gyeolBgElevated)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: GyeolRadius.lg, style: .continuous)
+                            .stroke(Color.gyeolBorder, lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: GyeolRadius.lg, style: .continuous))
                 }
 
-                Text("영역별 결").font(GyType.caption).foregroundColor(.gyTextTertiary)
+                Text("영역별 결")
+                    .gyeolStyle(.caption2)
+                    .foregroundColor(.gyeolTextTertiary)
                 ForEach(analyses) { a in
-                    DisclosureGroup {
-                        VStack(alignment: .leading, spacing: GySpace.xs) {
-                            Text(a.summary.where).font(GyType.bodyMD).foregroundColor(.gyText)
-                            Text(a.summary.why).font(GyType.bodyMD).foregroundColor(.gyTextSecondary)
-                            Text(a.summary.how).font(GyType.bodyMD).foregroundColor(.gyTextSecondary)
+                    DomainCard(
+                        domain: a.domain,
+                        summary: a.summary.where,
+                        metaText: a.isFromSkip ? "이 영역은 답변하지 않았습니다." : (a.isFromPrivateKept ? "이 영역은 비공개로 보관됨." : nil),
+                        isExpanded: .constant(false)
+                    ) {
+                        VStack(alignment: .leading, spacing: .gyeolSM) {
+                            Text(a.summary.why).gyeolStyle(.body).foregroundColor(.gyeolTextSecondary)
+                            Text(a.summary.how).gyeolStyle(.body).foregroundColor(.gyeolTextSecondary)
                             if let t = a.summary.tensionText {
-                                Text("긴장: \(t)").font(GyType.bodySM).foregroundColor(.gyBoundary)
-                            }
-                            if a.isFromSkip { Text("이 영역은 답변하지 않았습니다.").font(GyType.bodySM).foregroundColor(.gyTextTertiary) }
-                            if a.isFromPrivateKept { Text("이 영역은 비공개로 보관됨.").font(GyType.bodySM).foregroundColor(.gyTextTertiary) }
-                        }
-                        .padding(.top, GySpace.xs)
-                    } label: {
-                        VStack(alignment: .leading, spacing: GySpace.xxs) {
-                            Text("영역 0\(a.domain.indexNumber)").font(GyType.caption).foregroundColor(.gyTextTertiary)
-                            Text(a.domain.labelKo).font(GyType.headlineMD).foregroundColor(.gyText)
-                            if !a.summary.where.isEmpty {
-                                Text(a.summary.where).font(GyType.bodySM).foregroundColor(.gyTextSecondary)
+                                Text("긴장: \(t)").gyeolStyle(.caption1).foregroundColor(.gyeolLabelCareful)
                             }
                         }
                     }
-                    .padding(GySpace.lg)
-                    .background(Color.gyBgElevated)
-                    .clipShape(RoundedRectangle(cornerRadius: GyRadius.lg))
                 }
 
-                Spacer().frame(height: GySpace.lg)
+                Spacer().frame(height: .gyeolLG)
             }
-            .padding(.horizontal, GySpace.lg)
+            .padding(.horizontal, .gyeolLG)
         }
-        .background(Color.gyBg.ignoresSafeArea())
+        .background(Color.gyeolBgPrimary.ignoresSafeArea())
         .safeAreaInset(edge: .bottom) {
-            PrimaryButton(publishing ? "발행 중..." : "이대로 발행하기", isEnabled: !publishing && !analyses.isEmpty) {
-                Task {
-                    publishing = true
-                    defer { publishing = false }
-                    do {
-                        try await InterviewService.shared.publish()
-                        publishedOK = true
-                    } catch {
-                        errorMessage = error.localizedDescription
+            if !isReviewOnly {
+                PrimaryButton(publishing ? "발행 중..." : "이대로 발행하기", isEnabled: !publishing && !analyses.isEmpty) {
+                    GyLog.ui.info("self_review.publish_tap", fields: [
+                        "analyses_count": String(analyses.count),
+                        "has_core": String(core != nil),
+                    ])
+                    GyeolHaptic.medium()
+                    Task {
+                        publishing = true
+                        defer { publishing = false }
+                        do {
+                            try await InterviewService.shared.publish()
+                            publishedOK = true
+                            GyeolHaptic.success()
+                            // RootView는 auth.publishState 변화로 자동 MainTabView 전환됨.
+                            auth.markPublished()
+                        } catch {
+                            errorMessage = error.localizedDescription
+                            GyeolHaptic.error()
+                            GyLog.interview.error("publish.failed", error: error)
+                        }
                     }
                 }
-            }.padding(.bottom, GySpace.md)
+                .padding(.bottom, .gyeolMD)
+            }
         }
+        .gyTrackAppear("SelfReviewScreen", fields: ["mode": isReviewOnly ? "review_only" : "publish"])
         .task { await load() }
         .alert("발행이 진행 중입니다.", isPresented: $publishedOK) {
             Button("확인") {}
@@ -213,14 +131,23 @@ public struct SelfReviewScreen: View {
     }
 
     private func load() async {
+        let start = CFAbsoluteTimeGetCurrent()
+        GyLog.interview.info("self_review.load.start")
         do {
             try await InterviewService.shared.prepareReview()
             async let a = InterviewService.shared.loadOwnAnalyses()
             async let c = InterviewService.shared.loadOwnCoreIdentity()
             self.analyses = try await a
             self.core = try await c
+            let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+            GyLog.interview.info("self_review.load.ok", fields: [
+                "analyses_count": String(self.analyses.count),
+                "has_core": String(self.core != nil),
+                "duration_ms": String(ms),
+            ])
         } catch {
             errorMessage = error.localizedDescription
+            GyLog.interview.error("self_review.load.fail", error: error)
         }
         self.isLoading = false
     }
@@ -235,38 +162,43 @@ public struct MatchListScreen: View {
 
     public var body: some View {
         ScrollView {
-            LazyVStack(spacing: GySpace.md) {
+            LazyVStack(spacing: .gyeolMD) {
                 ForEach(service.matches) { m in
                     NavigationLink(value: m.id) {
-                        MatchCard(
+                        CandidateCard(
                             label: m.qualitativeLabel,
                             headline: m.recommendationNarrative?.headline ?? "결을 함께 살펴볼 사람",
-                            coreLabel: "통합 핵심 유형",
-                            interpretation: m.recommendationNarrative?.alignmentNarrative ?? ""
+                            coreInterpretation: m.recommendationNarrative?.alignmentNarrative ?? ""
                         )
                     }.buttonStyle(.plain)
                 }
                 if service.matches.isEmpty && !service.isLoading {
-                    Text("아직 매칭 후보가 준비되지 않았습니다.")
-                        .font(GyType.bodyMD).foregroundColor(.gyTextSecondary)
-                        .padding(GySpace.xl)
+                    VStack(spacing: .gyeolMD) {
+                        Spacer().frame(height: .gyeol2XL)
+                        Text("아직 매칭 후보가 준비되지 않았습니다.")
+                            .gyeolStyle(.body)
+                            .foregroundColor(.gyeolTextSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.gyeolXL)
                 }
                 if let err = service.lastError {
                     Text(err)
-                        .font(GyType.bodySM)
+                        .gyeolStyle(.caption2)
                         .foregroundColor(.red)
-                        .padding(.horizontal, GySpace.lg)
+                        .padding(.horizontal, .gyeolLG)
                 }
             }
-            .padding(.horizontal, GySpace.lg)
-            .padding(.vertical, GySpace.md)
+            .padding(.horizontal, .gyeolLG)
+            .padding(.vertical, .gyeolMD)
         }
-        .background(Color.gyBg.ignoresSafeArea())
+        .background(Color.gyeolBgPrimary.ignoresSafeArea())
         .navigationTitle("매칭 후보 목록")
         .gyNavigationBarTitleDisplayModeInline()
         .navigationDestination(for: UUID.self) { id in
             MatchDetailScreen(matchId: id)
         }
+        .gyTrackAppear("MatchListScreen")
         .task {
             await service.loadInitial()
             await service.subscribeRealtime()
@@ -274,7 +206,10 @@ public struct MatchListScreen: View {
         .onDisappear {
             Task { await service.unsubscribe() }
         }
-        .refreshable { await service.loadInitial() }
+        .refreshable {
+            GyLog.ui.info("match_list.pull_refresh")
+            await service.loadInitial()
+        }
     }
 }
 
@@ -294,37 +229,49 @@ public struct MatchDetailScreen: View {
 
     public var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: GySpace.lg) {
+            VStack(alignment: .leading, spacing: .gyeolLG) {
                 if let m = match {
-                    HStack(spacing: GySpace.xs) {
-                        Circle().fill(dotColor(m.qualitativeLabel)).frame(width: 8, height: 8)
-                        Text(m.qualitativeLabel.labelKo)
-                            .font(GyType.labelMD).foregroundColor(.gyTextSecondary)
+                    HStack(spacing: 6) {
+                        Circle().fill(m.qualitativeLabel.gyeolColor).frame(width: 5, height: 5)
+                        Text(m.qualitativeLabel.gyeolUppercaseTag)
+                            .font(.custom("Pretendard-SemiBold", fixedSize: 11))
+                            .kerning(11 * 0.15)
+                            .foregroundColor(m.qualitativeLabel.gyeolColor)
                     }
-                    Text("통합 핵심 유형").font(GyType.caption).foregroundColor(.gyTextTertiary)
+                    Text("통합 핵심 유형")
+                        .font(.custom("Pretendard-Medium", fixedSize: 11))
+                        .kerning(11 * 0.10)
+                        .foregroundColor(.gyeolTextTertiary)
                     Text(m.recommendationNarrative?.headline ?? "")
-                        .font(GyType.headlineLG).foregroundColor(.gyText).lineSpacing(8)
+                        .gyeolStyle(.title1)
+                        .foregroundColor(.gyeolTextPrimary)
                     Text(m.recommendationNarrative?.alignmentNarrative ?? "")
-                        .font(GyType.bodyLG).foregroundColor(.gyTextSecondary).lineSpacing(6)
+                        .gyeolStyle(.body)
+                        .foregroundColor(.gyeolTextSecondary)
 
-                    Divider().background(Color.gyDivider).padding(.vertical, GySpace.md)
+                    Divider().background(Color.gyeolDivider).padding(.vertical, .gyeolMD)
 
                     if !(m.recommendationNarrative?.tensionNarrative.isEmpty ?? true) {
-                        Text("결의 차이").font(GyType.caption).foregroundColor(.gyTextTertiary)
+                        Text("결의 차이")
+                            .gyeolStyle(.caption2)
+                            .foregroundColor(.gyeolTextTertiary)
                         Text(m.recommendationNarrative?.tensionNarrative ?? "")
-                            .font(GyType.bodyLG).foregroundColor(.gyText).lineSpacing(6)
+                            .gyeolStyle(.body)
+                            .foregroundColor(.gyeolTextPrimary)
                     }
                 }
             }
-            .padding(.horizontal, GySpace.lg)
-            .padding(.bottom, GySpace.xxl)
+            .padding(.horizontal, .gyeolLG)
+            .padding(.bottom, .gyeol2XL)
         }
-        .background(Color.gyBg.ignoresSafeArea())
+        .background(Color.gyeolBgPrimary.ignoresSafeArea())
         .gyNavigationBarTitleDisplayModeInline()
         .toolbar {
             ToolbarItem(placement: gyTopBarTrailing) {
                 Menu {
                     Button("관심 없음", role: .destructive) {
+                        GyLog.ui.info("match_detail.decline_tap", fields: ["match_id": matchId.short])
+                        GyeolHaptic.selection()
                         Task { await submitInterest(false) }
                     }
                 } label: {
@@ -335,9 +282,11 @@ public struct MatchDetailScreen: View {
         }
         .safeAreaInset(edge: .bottom) {
             PrimaryButton("관심 있음", isEnabled: !isSubmittingInterest) {
+                GyLog.ui.info("match_detail.interest_tap", fields: ["match_id": matchId.short])
+                GyeolHaptic.medium()
                 Task { await submitInterest(true) }
             }
-            .padding(.bottom, GySpace.md)
+            .padding(.bottom, .gyeolMD)
         }
         .alert("관심 표시 완료", isPresented: $showInterestSent) { Button("확인") {} }
         .alert("관심 표시 실패", isPresented: Binding(
@@ -348,9 +297,14 @@ public struct MatchDetailScreen: View {
         } message: {
             Text(interestError ?? "")
         }
+        .gyTrackAppear("MatchDetailScreen", fields: ["match_id": matchId.short])
         .task {
             await service.ensureExplanation(matchId: matchId)
             match = service.matches.first(where: { $0.id == matchId })
+            GyLog.match.info("detail.match_resolved", fields: [
+                "match_id": matchId.short,
+                "found": String(match != nil),
+            ])
         }
     }
 
@@ -365,12 +319,13 @@ public struct MatchDetailScreen: View {
             match = service.matches.first(where: { $0.id == matchId })
         } catch {
             interestError = error.localizedDescription
+            GyLog.match.error("interest.submit_failed", error: error, fields: [
+                "match_id": matchId.short,
+                "interested": String(interested),
+            ])
         }
     }
 
-    private func dotColor(_ q: QualitativeLabel) -> Color {
-        switch q { case .alignment: return .gyText; case .compromise: return .gyTextSecondary; case .boundary: return .gyBoundary }
-    }
 }
 
 // ─── 화면 13: 대화방 ────────────────────────────────────
@@ -383,20 +338,25 @@ public struct ChatRoomsScreen: View {
     public var body: some View {
         List(service.rooms) { room in
             NavigationLink(value: room.id) {
-                VStack(alignment: .leading, spacing: GySpace.xxs) {
-                    Text("결이 잘 맞은 사람").font(GyType.headlineSM).foregroundColor(.gyText)
+                VStack(alignment: .leading, spacing: .gyeolXS) {
+                    Text("결이 잘 맞은 사람")
+                        .gyeolStyle(.bodyLarge)
+                        .foregroundColor(.gyeolTextPrimary)
                     if let dt = room.lastMessageAt {
-                        Text(formatRel(dt)).font(GyType.caption).foregroundColor(.gyTextTertiary)
+                        Text(formatRel(dt))
+                            .gyeolStyle(.caption2)
+                            .foregroundColor(.gyeolTextTertiary)
                     }
                 }
             }
-            .listRowBackground(Color.gyBgElevated)
+            .listRowBackground(Color.gyeolBgElevated)
         }
         .scrollContentBackground(.hidden)
-        .background(Color.gyBg.ignoresSafeArea())
+        .background(Color.gyeolBgPrimary.ignoresSafeArea())
         .navigationTitle("대화방")
         .gyNavigationBarTitleDisplayModeInline()
         .navigationDestination(for: UUID.self) { id in ChatRoomScreen(roomId: id) }
+        .gyTrackAppear("ChatRoomsScreen")
         .task { await service.loadRooms(); await service.subscribeRooms() }
         .onDisappear {
             Task { await service.unsubscribeRooms() }
@@ -419,7 +379,7 @@ public struct ChatRoomScreen: View {
         VStack(spacing: 0) {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: GySpace.xxs) {
+                    LazyVStack(spacing: .gyeolXS) {
                         ForEach(service.messages) { msg in
                             ChatBubble(message: msg, isMine: msg.senderId == GyeolClient.shared.currentUserId)
                                 .id(msg.id)
@@ -428,37 +388,45 @@ public struct ChatRoomScreen: View {
                 }
                 .onChange(of: service.messages.count) { _, _ in
                     if let last = service.messages.last {
-                        withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                        withAnimation(.gyeolMedium) { proxy.scrollTo(last.id, anchor: .bottom) }
                     }
                 }
             }
-            HStack(spacing: GySpace.sm) {
+            HStack(spacing: 12) {
                 TextField("메시지 입력", text: $draft, axis: .vertical)
+                    .gyeolStyle(.body)
+                    .foregroundColor(.gyeolTextPrimary)
                     .lineLimit(1...4)
-                    .padding(GySpace.sm)
-                    .background(Color.gyBgSubtle)
-                    .clipShape(RoundedRectangle(cornerRadius: GyRadius.md))
+                    .padding(12)
+                    .background(Color.gyeolBgSubtle)
+                    .clipShape(RoundedRectangle(cornerRadius: GyeolRadius.md))
                 Button(action: {
                     let body = draft
+                    GyLog.ui.info("chat.send_tap", fields: [
+                        "room_id": roomId.short,
+                        "chars": String(body.count),
+                    ])
+                    GyeolHaptic.light()
                     draft = ""
                     Task { await send(body) }
                 }) {
                     Image(systemName: "arrow.up")
-                        .foregroundColor(.gyAccentContrast)
+                        .foregroundColor(.gyeolBgPrimary)
                         .frame(width: 36, height: 36)
-                        .background(Color.gyAccent)
+                        .background(Color.gyeolAccentPrimary)
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
                 .disabled(isSending || draft.trimmingCharacters(in: .whitespaces).isEmpty)
                 .accessibilityLabel("메시지 전송")
             }
-            .padding(GySpace.md)
-            .background(Color.gyBg)
+            .padding(.gyeolMD)
+            .background(Color.gyeolBgPrimary)
         }
-        .background(Color.gyBg.ignoresSafeArea())
+        .background(Color.gyeolBgPrimary.ignoresSafeArea())
         .navigationTitle("결이 잘 맞은 사람")
         .gyNavigationBarTitleDisplayModeInline()
+        .gyTrackAppear("ChatRoomScreen", fields: ["room_id": roomId.short])
         .task { await service.openRoom(roomId) }
         .onDisappear {
             Task { await service.unsubscribeMessages() }
@@ -490,24 +458,53 @@ public struct ChatRoomScreen: View {
 
 public struct MeScreen: View {
     @EnvironmentObject var auth: AuthService
+    @State private var showRestartComingSoon: Bool = false
 
     public init() {}
 
     public var body: some View {
         List {
+            Section("내 결") {
+                NavigationLink("내 답변 다시 보기") { SelfReviewScreen(isReviewOnly: true) }
+                NavigationLink("Dealbreaker 다시 보기") { DealbreakersReviewScreen() }
+                Button(action: {
+                    GyLog.ui.info("me.restart_domain_tap_disabled")
+                    GyeolHaptic.selection()
+                    showRestartComingSoon = true
+                }) {
+                    HStack {
+                        Text("영역 다시 답변하기")
+                            .foregroundColor(.gyeolTextSecondary)
+                        Spacer()
+                        Text("준비 중")
+                            .gyeolStyle(.caption2)
+                            .foregroundColor(.gyeolTextTertiary)
+                    }
+                }
+            }
             Section {
                 NavigationLink("처리 동의 내역") { ConsentHistoryScreen() }
+                NavigationLink("Open Source Licenses") { AcknowledgmentsScreen() }
                 NavigationLink("계정 삭제") { AccountDeletionScreen() }
             }
             Section {
-                Button("로그아웃") { Task { await auth.signOut() } }
+                Button("로그아웃") {
+                    GyLog.ui.info("me.sign_out_tap")
+                    Task { await auth.signOut() }
+                }
                     .foregroundColor(.red)
             }
         }
         .navigationTitle("나")
         .gyNavigationBarTitleDisplayModeInline()
         .scrollContentBackground(.hidden)
-        .background(Color.gyBg.ignoresSafeArea())
+        .background(Color.gyeolBgPrimary.ignoresSafeArea())
+        .gyTrackAppear("MeScreen")
+        .alert("준비 중", isPresented: $showRestartComingSoon) {
+            Button("확인") {}
+        } message: {
+            Text("이 기능은 곧 제공됩니다. 답변을 다시 정리하고 싶다면 잠시만 기다려주세요.")
+        }
     }
 }
 
@@ -522,30 +519,30 @@ public struct ConsentHistoryScreen: View {
     public var body: some View {
         List {
             if isLoading {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .listRowBackground(Color.gyBg)
+                LoadingDots()
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .listRowBackground(Color.gyeolBgPrimary)
             } else if records.isEmpty {
                 Text("처리 동의 내역이 없습니다.")
-                    .font(GyType.bodyMD)
-                    .foregroundColor(.gyTextSecondary)
-                    .listRowBackground(Color.gyBg)
+                    .gyeolStyle(.body)
+                    .foregroundColor(.gyeolTextSecondary)
+                    .listRowBackground(Color.gyeolBgPrimary)
             } else {
                 ForEach(records) { record in
-                    VStack(alignment: .leading, spacing: GySpace.sm) {
+                    VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             Text(record.consentTextVersion)
-                                .font(GyType.headlineSM)
-                                .foregroundColor(.gyText)
+                                .gyeolStyle(.bodyLarge)
+                                .foregroundColor(.gyeolTextPrimary)
                             Spacer()
                             Text(record.revokedAt == nil ? "활성" : "철회됨")
-                                .font(GyType.caption)
-                                .foregroundColor(record.revokedAt == nil ? .gyText : .gyTextTertiary)
+                                .gyeolStyle(.caption2)
+                                .foregroundColor(record.revokedAt == nil ? .gyeolTextPrimary : .gyeolTextTertiary)
                         }
                         Text(formatDate(record.consentedAt))
-                            .font(GyType.bodySM)
-                            .foregroundColor(.gyTextSecondary)
-                        VStack(alignment: .leading, spacing: GySpace.xxs) {
+                            .gyeolStyle(.caption2)
+                            .foregroundColor(.gyeolTextSecondary)
+                        VStack(alignment: .leading, spacing: .gyeolXS) {
                             consentLine("민감정보 처리", record.sensitiveDataProcessing)
                             consentLine("음성 on-device 처리", record.voiceOnDeviceDisclosed)
                             consentLine("Raw quote 격리", record.rawQuoteIsolationDisclosed)
@@ -553,15 +550,16 @@ public struct ConsentHistoryScreen: View {
                             consentLine("한국 데이터 거주", record.dataResidencyDisclosed)
                         }
                     }
-                    .padding(.vertical, GySpace.xs)
-                    .listRowBackground(Color.gyBgElevated)
+                    .padding(.vertical, .gyeolSM)
+                    .listRowBackground(Color.gyeolBgElevated)
                 }
             }
         }
         .scrollContentBackground(.hidden)
-        .background(Color.gyBg.ignoresSafeArea())
+        .background(Color.gyeolBgPrimary.ignoresSafeArea())
         .navigationTitle("처리 동의 내역")
         .gyNavigationBarTitleDisplayModeInline()
+        .gyTrackAppear("ConsentHistoryScreen")
         .task { await load() }
         .alert("동의 내역 로드 실패", isPresented: Binding(
             get: { errorMessage != nil },
@@ -584,12 +582,12 @@ public struct ConsentHistoryScreen: View {
     }
 
     private func consentLine(_ title: String, _ enabled: Bool) -> some View {
-        HStack(spacing: GySpace.xs) {
+        HStack(spacing: .gyeolSM) {
             Image(systemName: enabled ? "checkmark.circle.fill" : "xmark.circle")
-                .foregroundColor(enabled ? .gyText : .gyTextTertiary)
+                .foregroundColor(enabled ? .gyeolTextPrimary : .gyeolTextTertiary)
             Text(title)
-                .font(GyType.bodySM)
-                .foregroundColor(.gyTextSecondary)
+                .gyeolStyle(.caption2)
+                .foregroundColor(.gyeolTextSecondary)
         }
     }
 }
@@ -603,26 +601,28 @@ public struct AccountDeletionScreen: View {
     public init() {}
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: GySpace.lg) {
+        VStack(alignment: .leading, spacing: .gyeolLG) {
             Text("계정을 삭제하면 프로필이 매칭에서 제외되고, 삭제 예정일이 기록됩니다.")
-                .font(GyType.bodyLG)
-                .foregroundColor(.gyText)
-                .lineSpacing(6)
+                .gyeolStyle(.bodyLarge)
+                .foregroundColor(.gyeolTextPrimary)
             Text("삭제 예약 후에는 즉시 로그아웃됩니다. 데이터는 운영 보존 정책에 따라 30일 뒤 purge 대상이 됩니다.")
-                .font(GyType.bodyMD)
-                .foregroundColor(.gyTextSecondary)
-                .lineSpacing(5)
+                .gyeolStyle(.body)
+                .foregroundColor(.gyeolTextSecondary)
             Spacer()
             PrimaryButton("계정 삭제", isEnabled: !isDeleting) {
+                GyLog.ui.info("account_deletion.confirm_open")
+                GyeolHaptic.error()
                 showConfirm = true
             }
         }
-        .padding(GySpace.lg)
-        .background(Color.gyBg.ignoresSafeArea())
+        .padding(.gyeolLG)
+        .background(Color.gyeolBgPrimary.ignoresSafeArea())
         .navigationTitle("계정 삭제")
         .gyNavigationBarTitleDisplayModeInline()
+        .gyTrackAppear("AccountDeletionScreen")
         .confirmationDialog("계정을 삭제할까요?", isPresented: $showConfirm, titleVisibility: .visible) {
             Button("계정 삭제", role: .destructive) {
+                GyLog.ui.info("account_deletion.confirm_tap")
                 Task { await deleteAccount() }
             }
             Button("취소", role: .cancel) {}
@@ -644,6 +644,7 @@ public struct AccountDeletionScreen: View {
             try await auth.softDeleteAccount()
         } catch {
             errorMessage = error.localizedDescription
+            GyLog.auth.error("account_deletion.failed", error: error)
         }
     }
 }

@@ -9,6 +9,7 @@ import {
   jsonResponse,
   requireUserId,
 } from "../_shared/supabase.ts";
+import { missingFinishedDomains } from "../_shared/flow-state.ts";
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") {
@@ -24,12 +25,10 @@ Deno.serve(async (req) => {
       .from("interviews")
       .select("domain, status")
       .eq("user_id", userId);
-    const finished = new Set(
-      (interviews ?? []).filter((row) => row.status !== "in_progress").map((
-        row,
-      ) => row.domain),
-    );
-    if (finished.size < 6) throw new HttpError(400, "not_all_domains_finished");
+    const missing = missingFinishedDomains(interviews ?? []);
+    if (missing.length > 0) {
+      throw new HttpError(400, "not_all_domains_finished");
+    }
 
     const { data: existingCore } = await service
       .from("core_identities")
@@ -52,6 +51,16 @@ Deno.serve(async (req) => {
     if ((pendingDealbreakers?.length ?? 0) > 0) {
       await invokeUserFunction("llm-prompt-e", auth, {});
       dealbreakersNormalized = true;
+    }
+
+    const { data: remainingDealbreakers } = await service
+      .from("explicit_dealbreakers")
+      .select("id")
+      .eq("user_id", userId)
+      .is("canonical_target_id", null)
+      .limit(1);
+    if ((remainingDealbreakers?.length ?? 0) > 0) {
+      throw new HttpError(400, "dealbreakers_not_normalized");
     }
 
     return jsonResponse({

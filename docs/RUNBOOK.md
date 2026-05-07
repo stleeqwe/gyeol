@@ -36,6 +36,19 @@ supabase secrets list
 | `GEMINI_API_KEY` | ✅ set | https://aistudio.google.com/apikey |
 | `GEMINI_FLASH_MODEL` | ✅ `gemini-3-flash-preview` | (optional override) |
 | `GEMINI_LITE_MODEL` | ✅ `gemini-3.1-flash-lite-preview` | (optional override) |
+| `LLM_TRACE_MODE` | (test/staging only) `full` | Enables raw LLM I/O persistence to `public.llm_call_traces` per ADR-017. **PROHIBITED in production** — keep unset or `none`. Also enables Gemini `thinkingConfig.includeThoughts: true` so the thought summary is captured. |
+
+### 1.2 LLM call parameter table (per function)
+
+Per ADR-016 (quality first). All 5 functions explicitly set `thinking_level` and `maxOutputTokens`. Defaults (Gemini 3 Flash = `high (dynamic)`, 3.1 Flash-Lite = `minimal`) are not relied upon. Legacy `thinkingBudget` is forbidden on Gemini 3.
+
+| Function | Model alias | thinking_level | maxOutputTokens | temperature | Workload rationale |
+|----------|-------------|----------------|-----------------|-------------|--------------------|
+| `llm-prompt-a` (follow-up question) | `gemini-3-flash` | `high` | 2048 | 0.6 | Single-answer edge-case identification — depth of interview hinges on inference quality. |
+| `llm-prompt-b` (domain analysis) | `gemini-3-flash` | `high` | 8192 | 0.3 | Multi-answer principle extraction + sacred/disgust + dealbreaker inference. Core matching input. structured 50+ fields + answer_evidence. |
+| `llm-prompt-c-postedit` (narrative post-edit) | `gemini-3.1-flash-lite` | `high` | 4096 | 0.3 | Tone refinement under "preserve meaning, no new vocabulary" constraint — subtle paraphrase quality affects matching UX. Output ≤ 80+800+800 chars. |
+| `llm-prompt-d` (core identity synthesis) | `gemini-3-flash` | `high` | 4096 | 0.3 | 6-domain integration into one user-facing identity label + interpretation. |
+| `llm-prompt-e` (dealbreaker normalization) | `gemini-3.1-flash-lite` | `high` | 2048 | 0.2 | Free-text → canonical mapping; mapping accuracy directly reduces operator review queue load. |
 | `SUPABASE_URL` | ✅ auto-injected by Edge runtime | (automatic) |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ auto-injected by Edge runtime | (automatic) |
 | `SUPABASE_ANON_KEY` | ✅ auto-injected by Edge runtime | (automatic) |
@@ -56,6 +69,8 @@ cd backend && supabase secrets set INTERNAL_CALL_TOKEN="$NEW"
 ---
 
 ## 3. Deployment Procedures
+
+> **Agent autonomy**: coding agents (Claude Code, Codex) are pre-authorized by the owner to perform the deployments below without per-call confirmation. See `CLAUDE.md` "Autonomous Deployment Authorization" for the standing rules and the destructive-operation exceptions that still require explicit confirmation.
 
 ### 3.1 Edge Function deployment
 
@@ -173,8 +188,53 @@ metadata->>match_id = "273658b7"
 | `polish.validation valid=false` rate | recommendation-matrix-engine logs | < 5% (reinforce prompt C or evaluator if exceeded) |
 | `raw_quote_detected` rate | llm-prompt-b + normalization-worker logs | < 5% (reinforce prompt B if exceeded) |
 | `batch.ok avg_per_pair_ms` | matching-algorithm logs | p95 < 15ms |
-| LLM `llm.ok llm_latency_ms` | llm-prompt-* logs | p95 < 5000ms |
+| LLM `llm-prompt-a llm_latency_ms` | edge logs | p95 < 5000ms |
+| LLM `llm-prompt-b llm_latency_ms` | edge logs | p95 < 12000ms (high thinking + 50+ field structured output) |
+| LLM `llm-prompt-c-postedit llm_latency_ms` | edge logs | p95 < 4000ms (lite model) |
+| LLM `llm-prompt-d llm_latency_ms` | edge logs | p95 < 8000ms (6-domain integration) |
+| LLM `llm-prompt-e llm_latency_ms` | edge logs | p95 < 4000ms (lite model) |
+| LLM `*_tokens` (thinking/input/output) | edge logs | track per function for cost monitoring |
 | Realtime `matches.change_received` frequency | iOS device logs | review filter if flood detected |
+
+### 5.4 LLM conversation trace queries (test/staging only)
+
+Per ADR-017. Available only when `LLM_TRACE_MODE=full` is set on the Edge runtime. Production must NOT have this flag enabled.
+
+```sql
+-- Full conversation flow for one interview (chronological)
+SELECT created_at, function_name, prompt_version, latency_ms,
+       input_tokens, output_tokens, thinking_tokens,
+       left(user_prompt, 800)      AS prompt_excerpt,
+       left(response_text, 800)    AS response_excerpt,
+       left(thinking_summary, 800) AS thoughts_excerpt
+FROM public.llm_call_traces
+WHERE interview_id = '<UUID>'
+ORDER BY created_at ASC;
+
+-- Recent follow-up questions a user received (quality review for prompt A)
+SELECT t.created_at, t.user_prompt, t.response_text, t.thinking_summary,
+       t.latency_ms, t.thinking_tokens
+FROM public.llm_call_traces t
+WHERE t.user_id = '<UUID>' AND t.function_name = 'llm-prompt-a'
+ORDER BY t.created_at DESC
+LIMIT 20;
+
+-- Domain analysis (prompt B) snapshots — heaviest call, watch thinking_tokens
+SELECT created_at, domain, latency_ms, input_tokens, output_tokens, thinking_tokens,
+       length(response_text) AS response_chars
+FROM public.llm_call_traces
+WHERE function_name = 'llm-prompt-b' AND created_at > now() - interval '24 hours'
+ORDER BY latency_ms DESC;
+
+-- Failed calls — error_message + truncated response for triage
+SELECT created_at, function_name, status_code, error_message,
+       left(response_text, 400) AS response_excerpt
+FROM public.llm_call_traces
+WHERE status_code >= 400 AND created_at > now() - interval '7 days'
+ORDER BY created_at DESC;
+```
+
+iOS-side raw log inspection (DEBUG builds with `GYEOL_TRACE_RAW` set): Console.app → filter `subsystem:com.gyeol.app category:trace`.
 
 ### 5.3 operator_review_queue processing
 

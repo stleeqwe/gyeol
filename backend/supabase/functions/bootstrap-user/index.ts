@@ -29,12 +29,14 @@ Deno.serve(async (req) => {
       null;
 
     const service = getServiceRoleClient();
-    await service.from("users").upsert({
+    const { data: userRow } = await service.from("users").upsert({
       id: userId,
       apple_sub: appleSub,
       display_name: displayName,
       last_active_at: new Date().toISOString(),
-    }, { onConflict: "id" });
+    }, { onConflict: "id" })
+      .select("profile_published_at")
+      .single();
 
     const { data: consents } = await service
       .from("consents")
@@ -46,6 +48,7 @@ Deno.serve(async (req) => {
     return jsonResponse({
       user_id: userId,
       has_active_consent: (consents?.length ?? 0) > 0,
+      profile_published_at: userRow?.profile_published_at ?? null,
     });
   } catch (err) {
     return handleError(err);

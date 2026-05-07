@@ -8,60 +8,80 @@ import GyeolDomain
 // ─── 화면 3: 영역 인터뷰 (오픈 질문) ─────────────────────
 
 public struct InterviewIntroScreen: View {
-    @StateObject private var vm: InterviewViewModel
+    @ObservedObject var vm: InterviewViewModel
+    @EnvironmentObject var coord: InterviewFlowCoordinator
     @State private var showSkip: Bool = false
     @State private var showPrivate: Bool = false
-    @State private var goAnswer: Bool = false
 
-    public init(domain: DomainID) {
-        _vm = StateObject(wrappedValue: InterviewViewModel(domain: domain))
+    public init(vm: InterviewViewModel) {
+        self.vm = vm
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: GySpace.lg) {
+        VStack(alignment: .leading, spacing: .gyeolLG) {
             HStack {
                 Text("영역 0\(vm.domain.indexNumber)")
-                    .font(GyType.caption).foregroundColor(.gyTextTertiary)
+                    .gyeolStyle(.caption2)
+                    .foregroundColor(.gyeolTextTertiary)
                 Spacer()
                 Text("\(vm.domain.indexNumber) / 6")
-                    .font(GyType.caption).foregroundColor(.gyTextTertiary)
+                    .gyeolStyle(.caption2)
+                    .foregroundColor(.gyeolTextTertiary)
             }
             GyProgressBar(current: vm.domain.indexNumber, total: 6)
 
-            Spacer().frame(height: GySpace.lg)
+            Spacer().frame(height: .gyeolLG)
             Text(vm.domain.labelKo)
-                .font(GyType.headlineMD).foregroundColor(.gyText)
+                .gyeolStyle(.bodyLarge)
+                .foregroundColor(.gyeolTextPrimary)
 
-            Spacer().frame(height: GySpace.xxl)
+            Spacer().frame(height: .gyeol2XL)
             Text(vm.openQuestion.primary)
-                .font(GyType.headlineLG).foregroundColor(.gyText)
-                .lineSpacing(8).fixedSize(horizontal: false, vertical: true)
+                .gyeolStyle(.title1)
+                .foregroundColor(.gyeolTextPrimary)
+                .fixedSize(horizontal: false, vertical: true)
             if let s = vm.openQuestion.secondary {
-                Text(s).font(GyType.headlineLG)
-                    .foregroundColor(.gyTextSecondary)
-                    .lineSpacing(8).fixedSize(horizontal: false, vertical: true)
+                Text(s)
+                    .gyeolStyle(.title1)
+                    .foregroundColor(.gyeolTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
 
-            HStack(spacing: GySpace.lg) {
-                SecondaryButton("더 쉽게 설명해주세요") { vm.easierMode() }
-                SecondaryButton("건너뛸게요") { showSkip = true }
+            HStack(spacing: .gyeolMD) {
+                LinkButton("더 쉽게 설명해주세요") {
+                    GyeolHaptic.selection()
+                    vm.easierMode()
+                }
+                LinkButton("건너뛸게요") {
+                    GyLog.ui.info("interview.skip_modal_open", fields: ["domain": vm.domain.rawValue])
+                    showSkip = true
+                }
+                LinkButton("비공개로 보관") {
+                    GyLog.ui.info("interview.private_modal_open", fields: ["domain": vm.domain.rawValue])
+                    showPrivate = true
+                }
                 Spacer()
             }
-            Divider().background(Color.gyDivider)
-            PrimaryButton("답변 시작하기") { goAnswer = true }
+            Divider().background(Color.gyeolDivider)
+            PrimaryButton("답변 시작하기") {
+                GyLog.ui.info("interview.start_answer_tap", fields: ["domain": vm.domain.rawValue])
+                GyeolHaptic.medium()
+                coord.advanceFromIntroToAnswer(domain: vm.domain)
+            }
         }
-        .padding(.horizontal, GySpace.lg)
-        .background(Color.gyBg.ignoresSafeArea())
-        .navigationDestination(isPresented: $goAnswer) {
-            AnswerInputScreen(vm: vm, isOpenQuestion: true)
-        }
-        .task { await vm.bootstrap() }
+        .padding(.horizontal, .gyeolLG)
+        .background(Color.gyeolBgPrimary.ignoresSafeArea())
+        .gyTrackAppear("InterviewIntroScreen", fields: ["domain": vm.domain.rawValue])
         .overlay {
             if showSkip {
                 SkipReasonModal(
                     onSelect: { reason in
-                        Task { await vm.skip(reason: reason); showSkip = false }
+                        Task {
+                            await vm.skip(reason: reason)
+                            showSkip = false
+                            coord.advanceAfterAvoidanceAction(domain: vm.domain)
+                        }
                     },
                     onCancel: { showSkip = false }
                 )
@@ -70,19 +90,18 @@ public struct InterviewIntroScreen: View {
             if showPrivate {
                 PrivateKeepModal(
                     onConfirm: {
-                        Task { await vm.keepPrivate(); showPrivate = false }
+                        Task {
+                            await vm.keepPrivate()
+                            showPrivate = false
+                            coord.advanceAfterAvoidanceAction(domain: vm.domain)
+                        }
                     },
                     onCancel: { showPrivate = false }
                 )
                 .background(Color.black.opacity(0.4).ignoresSafeArea())
             }
         }
-        .toolbar {
-            ToolbarItem(placement: gyTopBarTrailing) {
-                Button("비공개") { showPrivate = true }
-                    .font(GyType.bodySM).foregroundColor(.gyTextSecondary)
-            }
-        }
+        .gyPauseToolbar { coord.pause() }
     }
 }
 
@@ -90,11 +109,12 @@ public struct InterviewIntroScreen: View {
 
 public struct AnswerInputScreen: View {
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject var coord: InterviewFlowCoordinator
     @ObservedObject var vm: InterviewViewModel
     let isOpenQuestion: Bool
     @StateObject private var speech = SpeechService()
-    @State private var goNext: Bool = false
     @State private var showPermissionModal: Bool = false
+    @FocusState private var isInputFocused: Bool
 
     public init(vm: InterviewViewModel, isOpenQuestion: Bool) {
         self.vm = vm
@@ -102,45 +122,58 @@ public struct AnswerInputScreen: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: GySpace.md) {
+        VStack(alignment: .leading, spacing: .gyeolMD) {
             HStack {
                 Text("\(vm.domain.indexNumber) / 6")
-                    .font(GyType.caption).foregroundColor(.gyTextTertiary)
+                    .gyeolStyle(.caption2)
+                    .foregroundColor(.gyeolTextTertiary)
                 Spacer()
             }
+            .gyeolFadeOnInput(isInputFocused, level: .topBar)
+
             GyProgressBar(current: vm.domain.indexNumber, total: 6)
+                .gyeolFadeOnInput(isInputFocused, level: .progress)
 
             Group {
                 if isOpenQuestion {
                     Text("\(vm.openQuestion.primary) \(vm.openQuestion.secondary ?? "")")
-                        .font(GyType.bodyMD).foregroundColor(.gyTextTertiary).lineSpacing(4)
+                        .gyeolStyle(.body)
+                        .foregroundColor(.gyeolTextTertiary)
                 } else if let q = vm.followUpQuestion {
-                    VStack(alignment: .leading, spacing: GySpace.xs) {
-                        Text("결").font(GyType.caption).foregroundColor(.gyTextSecondary)
-                        Text(q).font(GyType.headlineLG).foregroundColor(.gyText).lineSpacing(8)
+                    VStack(alignment: .leading, spacing: .gyeolSM) {
+                        Text("결")
+                            .gyeolStyle(.caption2)
+                            .foregroundColor(.gyeolTextSecondary)
+                        Text(q)
+                            .gyeolStyle(.title1)
+                            .foregroundColor(.gyeolTextPrimary)
                     }
                 }
             }
+            .gyeolFadeOnInput(isInputFocused, level: .question)
 
             HStack {
                 Spacer()
-                MicButton(state: micState) { onMicTap() }
+                MicButton(state: micState) {
+                    GyeolHaptic.light()
+                    onMicTap()
+                }
             }
 
             ZStack(alignment: .topLeading) {
                 if vm.currentDraft.isEmpty && !speech.isRecording {
                     Text("답변을 적어주세요.")
-                        .font(GyType.bodyLG)
-                        .foregroundColor(.gyTextDisabled)
-                        .padding(GySpace.md)
+                        .gyeolStyle(.body)
+                        .foregroundColor(.gyeolTextTertiary.opacity(0.55))
+                        .padding(.gyeolMD)
                 }
                 TextEditor(text: $vm.currentDraft)
-                    .font(GyType.bodyLG)
-                    .foregroundColor(.gyText)
+                    .focused($isInputFocused)
+                    .gyeolStyle(.body)
+                    .foregroundColor(.gyeolTextPrimary)
                     .scrollContentBackground(.hidden)
-                    .padding(GySpace.xs)
+                    .padding(.gyeolSM)
                     .frame(minHeight: 200)
-                    .background(Color.gyBgSubtle.opacity(0.0))
             }
 
             if speech.isRecording {
@@ -149,26 +182,42 @@ public struct AnswerInputScreen: View {
                 WaveformView(amplitude: speech.amplitude)
             } else if !vm.currentDraft.isEmpty {
                 Text(speech.transcript.isEmpty ? "글자 수에 제한 없습니다. 생각의 흐름을 그대로 적어주세요." : "음성으로 받은 텍스트입니다. 필요하면 자유롭게 수정해주세요.")
-                    .font(GyType.bodySM).foregroundColor(.gyTextTertiary)
+                    .gyeolStyle(.caption2)
+                    .foregroundColor(.gyeolTextTertiary)
                 Spacer()
             } else {
                 Spacer()
             }
 
-            HStack(spacing: GySpace.md) {
+            HStack(spacing: .gyeolMD) {
                 if !isOpenQuestion {
-                    SecondaryButton("더 쉽게 설명해주세요") { vm.easierMode() }
+                    LinkButton("더 쉽게 설명해주세요") { vm.easierMode() }
+                        .gyeolFadeOnInput(isInputFocused, level: .secondary)
                 }
                 Spacer()
             }
 
-            PrimaryButton(speech.isRecording ? "녹음 종료" : "답변 완료") {
-                if speech.isRecording {
+            if speech.isRecording {
+                StopRecordingButton {
+                    GyLog.ui.info("answer.stop_recording_tap", fields: [
+                        "domain": vm.domain.rawValue,
+                        "elapsed_seconds": String(speech.elapsedSeconds),
+                    ])
+                    GyeolHaptic.light()
                     speech.stop()
                     if !speech.transcript.isEmpty {
                         vm.currentDraft = speech.transcript
                     }
-                } else {
+                }
+            } else {
+                PrimaryButton("답변 완료") {
+                    GyLog.ui.info("answer.complete_tap", fields: [
+                        "domain": vm.domain.rawValue,
+                        "is_open_question": String(isOpenQuestion),
+                        "draft_chars": String(vm.currentDraft.count),
+                        "voice_used": String(!speech.transcript.isEmpty),
+                    ])
+                    GyeolHaptic.medium()
                     Task {
                         let previousAnswerCount = vm.answers.count
                         let voiceSeconds = speech.transcript.isEmpty ? nil : speech.elapsedSeconds
@@ -179,20 +228,22 @@ public struct AnswerInputScreen: View {
                         }
                         if vm.answers.count > previousAnswerCount {
                             clearDraft()
-                            goNext = true
+                            coord.advanceFromAnswerToLoading(domain: vm.domain)
                         }
                     }
                 }
             }
         }
-        .padding(.horizontal, GySpace.lg)
-        .background(Color.gyBg.ignoresSafeArea())
-        .navigationDestination(isPresented: $goNext) {
-            FollowUpLoadingScreen(vm: vm)
-        }
+        .padding(.horizontal, .gyeolLG)
+        .background(Color.gyeolBgPrimary.ignoresSafeArea())
+        .gyPauseToolbar { coord.pause() }
         .onChange(of: speech.transcript) { _, new in
             if !new.isEmpty { vm.currentDraft = new }
         }
+        .gyTrackAppear("AnswerInputScreen", fields: [
+            "domain": vm.domain.rawValue,
+            "is_open_question": String(isOpenQuestion),
+        ])
         .onAppear { restoreDraft() }
         .onChange(of: vm.currentDraft) { _, _ in saveDraft() }
         .overlay {
@@ -242,6 +293,10 @@ public struct AnswerInputScreen: View {
     }
 
     private func onMicTap() {
+        GyLog.ui.info("answer.mic_tap", fields: [
+            "permission": "\(speech.permissionStatus)",
+            "is_recording": String(speech.isRecording),
+        ])
         switch speech.permissionStatus {
         case .notDetermined:
             showPermissionModal = true
@@ -275,54 +330,59 @@ public struct AnswerInputScreen: View {
 // ─── 화면 5: 후속 질문 생성 중 ────────────────────────────
 
 public struct FollowUpLoadingScreen: View {
+    @EnvironmentObject var coord: InterviewFlowCoordinator
     @ObservedObject var vm: InterviewViewModel
-    @State private var pulse: Bool = false
-    @State private var goFollowUp: Bool = false
-    @State private var goEnd: Bool = false
+    @State private var advanced: Bool = false
 
     public init(vm: InterviewViewModel) {
         self.vm = vm
     }
 
     public var body: some View {
-        VStack(spacing: GySpace.xl) {
+        VStack(spacing: .gyeolXL) {
             Spacer()
-            HStack(spacing: GySpace.xs) {
-                ForEach(0..<3, id: \.self) { i in
-                    Circle().fill(Color.gyAccent.opacity(pulse ? 0.4 + 0.2 * Double(i) : 0.2))
-                        .frame(width: 6, height: 6)
-                }
-            }
-            .onAppear {
-                withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { pulse.toggle() }
-            }
+            LoadingDots()
             Text("당신의 답을 읽고 있습니다.")
-                .font(GyType.bodyLG).foregroundColor(.gyTextSecondary)
+                .gyeolStyle(.body)
+                .foregroundColor(.gyeolTextSecondary)
             Spacer()
         }
-        .background(Color.gyBg.ignoresSafeArea())
+        .frame(maxWidth: .infinity)
+        .background(Color.gyeolBgPrimary.ignoresSafeArea())
         .gyNavigationBarHidden()
+        .gyTrackAppear("FollowUpLoadingScreen", fields: ["domain": vm.domain.rawValue])
+        .gyPauseToolbar { coord.pause() }
         .task {
+            let waitStart = CFAbsoluteTimeGetCurrent()
+            GyLog.interview.info("follow_up_wait.start", fields: [
+                "domain": vm.domain.rawValue,
+                "answers": String(vm.answers.count),
+            ])
             // 잠시 대기 → followUpQuestion 또는 영역 종료
-            while !goFollowUp && !goEnd {
+            var nextStep: String = "stuck"
+            while !advanced {
                 try? await Task.sleep(for: .milliseconds(400))
-                if let _ = vm.followUpQuestion, !vm.pendingFollowUp {
-                    goFollowUp = true
+                if vm.followUpQuestion != nil, !vm.pendingFollowUp {
+                    advanced = true
+                    nextStep = "follow_up"
+                    coord.advanceFromLoadingToFollowUpAnswer(domain: vm.domain)
                     break
                 }
                 if vm.answers.count >= 5 || (!vm.pendingFollowUp && vm.followUpQuestion == nil) {
                     if vm.answers.count >= 3 {
-                        goEnd = true
+                        advanced = true
+                        nextStep = "domain_end"
+                        coord.advanceFromLoadingToEnd(domain: vm.domain)
                         break
                     }
                 }
             }
-        }
-        .navigationDestination(isPresented: $goFollowUp) {
-            AnswerInputScreen(vm: vm, isOpenQuestion: false)
-        }
-        .navigationDestination(isPresented: $goEnd) {
-            DomainEndScreen(vm: vm)
+            let waitMs = Int((CFAbsoluteTimeGetCurrent() - waitStart) * 1000)
+            GyLog.interview.info("follow_up_wait.done", fields: [
+                "domain": vm.domain.rawValue,
+                "duration_ms": String(waitMs),
+                "next": nextStep,
+            ])
         }
     }
 }
@@ -330,47 +390,68 @@ public struct FollowUpLoadingScreen: View {
 // ─── 화면 7: 영역 종료 ────────────────────────────────────
 
 public struct DomainEndScreen: View {
+    @EnvironmentObject var coord: InterviewFlowCoordinator
     @ObservedObject var vm: InterviewViewModel
-    @Environment(\.dismiss) private var dismiss
 
     public init(vm: InterviewViewModel) {
         self.vm = vm
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: GySpace.lg) {
+        VStack(alignment: .leading, spacing: .gyeolLG) {
             Spacer()
             Text("영역 0\(vm.domain.indexNumber) — \(vm.domain.labelKo)")
-                .font(GyType.caption).foregroundColor(.gyTextTertiary)
+                .gyeolStyle(.caption2)
+                .foregroundColor(.gyeolTextTertiary)
             Text("답변이 끝났습니다.")
-                .font(GyType.headlineLG).foregroundColor(.gyText)
+                .gyeolStyle(.title1)
+                .foregroundColor(.gyeolTextPrimary)
             Text("분석은 6영역이 모두 끝난 후 한 번에 정리되어 보여드립니다.")
-                .font(GyType.bodyMD).foregroundColor(.gyTextSecondary).lineSpacing(4)
+                .gyeolStyle(.body)
+                .foregroundColor(.gyeolTextSecondary)
 
             Spacer()
             if let next = nextDomain() {
                 Text("다음 영역")
-                    .font(GyType.caption).foregroundColor(.gyTextTertiary)
+                    .gyeolStyle(.caption2)
+                    .foregroundColor(.gyeolTextTertiary)
                 Text("영역 0\(next.indexNumber) — \(next.labelKo)")
-                    .font(GyType.headlineMD).foregroundColor(.gyText)
+                    .gyeolStyle(.bodyLarge)
+                    .foregroundColor(.gyeolTextPrimary)
+            } else {
+                Text("이제 만나고 싶지 않은 결을 적습니다.")
+                    .gyeolStyle(.caption2)
+                    .foregroundColor(.gyeolTextTertiary)
+                Text("Dealbreaker — 발행 직전 마지막 단계")
+                    .gyeolStyle(.bodyLarge)
+                    .foregroundColor(.gyeolTextPrimary)
             }
-            Spacer().frame(height: GySpace.lg)
-            PrimaryButton(nextDomain() != nil ? "다음 영역으로" : "분석 시작") {
+            Spacer().frame(height: .gyeolLG)
+            PrimaryButton(nextDomain() != nil ? "다음 영역으로" : "Dealbreaker로") {
+                GyLog.ui.info("domain_end.next_tap", fields: [
+                    "domain": vm.domain.rawValue,
+                    "has_next": String(nextDomain() != nil),
+                ])
+                GyeolHaptic.medium()
                 Task {
                     await vm.finalizeDomain()
-                    dismiss()
+                    coord.advanceFromDomainEnd(domain: vm.domain)
                 }
             }
-            SecondaryButton("잠시 쉬었다 할게요") {
+            LinkButton("잠시 쉬었다 할게요") {
+                GyLog.ui.info("domain_end.pause_tap", fields: ["domain": vm.domain.rawValue])
                 Task {
                     await vm.finalizeDomain()
-                    dismiss()
+                    coord.pause()
                 }
-            }.frame(maxWidth: .infinity)
+            }
+            .frame(maxWidth: .infinity)
         }
-        .padding(.horizontal, GySpace.lg)
-        .background(Color.gyBg.ignoresSafeArea())
+        .padding(.horizontal, .gyeolLG)
+        .background(Color.gyeolBgPrimary.ignoresSafeArea())
         .gyNavigationBarHidden()
+        .gyPauseToolbar { coord.pause() }
+        .gyTrackAppear("DomainEndScreen", fields: ["domain": vm.domain.rawValue])
     }
 
     private func nextDomain() -> DomainID? {

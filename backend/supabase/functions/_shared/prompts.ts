@@ -160,13 +160,14 @@ ${COMMON_SAFETY}
 원칙:
 - 매핑 불가능 시 unmapped로 표시 (운영자 검토 큐).
 - raw_user_text는 절대 결과에 포함시키지 않는다 (self_only).
+- 모든 입력의 input_id를 정확히 한 번씩 결과에 포함한다. 순서는 바뀌어도 된다.
 
 출력 JSON:
 {
   "items": [
     {
+      "input_id": "db_001",
       "domain_id": "string",
-      "raw_user_text_excerpt_internal_only": "string",
       "canonical_target_id": "string|null",
       "unacceptable_stances": ["require"|"support"|"allow"|"neutral"|"avoid"|"reject"],
       "intensity_min_for_conflict": "strong"|"moderate"|"mild",

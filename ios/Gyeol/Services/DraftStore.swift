@@ -45,9 +45,14 @@ public final class AnswerDraft {
 
 public enum DraftSchema {
     public static let container: ModelContainer = {
+        let start = CFAbsoluteTimeGetCurrent()
         do {
-            return try ModelContainer(for: AnswerDraft.self)
+            let c = try ModelContainer(for: AnswerDraft.self)
+            let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+            GyLog.draft.info("container.init", fields: ["duration_ms": String(ms)])
+            return c
         } catch {
+            GyLog.draft.error("container.init_failed", error: error)
             fatalError("Draft container failed: \(error)")
         }
     }()
@@ -59,14 +64,31 @@ public enum DraftStore {
         return "\(domain.rawValue)|\(questionPart)"
     }
 
+    /// 로그 노출용 안전 식별자 — domain rawValue + open/follow 분류만 노출. 질문 본문 미포함.
+    private static func keyTag(_ key: String) -> String {
+        let parts = key.split(separator: "|", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2 else { return "unknown" }
+        let kind = parts[1] == "open" ? "open" : "follow"
+        return "\(parts[0])|\(kind)"
+    }
+
     @MainActor
     public static func load(context: ModelContext, key: String) -> String? {
+        let start = CFAbsoluteTimeGetCurrent()
         var descriptor = FetchDescriptor<AnswerDraft>(
             predicate: #Predicate { $0.key == key },
             sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
         )
         descriptor.fetchLimit = 1
-        return try? context.fetch(descriptor).first?.text
+        let row = try? context.fetch(descriptor).first
+        let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+        GyLog.draft.debug("load", fields: [
+            "key_tag": keyTag(key),
+            "found": String(row != nil),
+            "duration_ms": String(ms),
+            "chars": String(row?.text.count ?? 0),
+        ])
+        return row?.text
     }
 
     @MainActor
@@ -86,9 +108,11 @@ public enum DraftStore {
             delete(context: context, key: key)
             return
         }
+        let start = CFAbsoluteTimeGetCurrent()
         var descriptor = FetchDescriptor<AnswerDraft>(predicate: #Predicate { $0.key == key })
         descriptor.fetchLimit = 1
-        if let existing = try? context.fetch(descriptor).first {
+        let existing = try? context.fetch(descriptor).first
+        if let existing {
             existing.text = text
             existing.seq = seq
             existing.depthLevel = depthLevel
@@ -106,16 +130,41 @@ public enum DraftStore {
                 voiceInputSeconds: voiceInputSeconds
             ))
         }
-        try? context.save()
+        do {
+            try context.save()
+            let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+            GyLog.draft.debug("upsert", fields: [
+                "key_tag": keyTag(key),
+                "kind": existing != nil ? "update" : "insert",
+                "chars": String(text.count),
+                "duration_ms": String(ms),
+            ])
+        } catch {
+            GyLog.draft.error("upsert.save_failed", error: error, fields: [
+                "key_tag": keyTag(key),
+            ])
+        }
     }
 
     @MainActor
     public static func delete(context: ModelContext, key: String) {
+        let start = CFAbsoluteTimeGetCurrent()
         var descriptor = FetchDescriptor<AnswerDraft>(predicate: #Predicate { $0.key == key })
         descriptor.fetchLimit = 1
         if let existing = try? context.fetch(descriptor).first {
             context.delete(existing)
-            try? context.save()
+            do {
+                try context.save()
+                let ms = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+                GyLog.draft.info("delete", fields: [
+                    "key_tag": keyTag(key),
+                    "duration_ms": String(ms),
+                ])
+            } catch {
+                GyLog.draft.error("delete.save_failed", error: error, fields: ["key_tag": keyTag(key)])
+            }
+        } else {
+            GyLog.draft.debug("delete.not_found", fields: ["key_tag": keyTag(key)])
         }
     }
 }
